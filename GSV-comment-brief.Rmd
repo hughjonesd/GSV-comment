@@ -5,16 +5,20 @@ date: "`r Sys.Date()`"
 output:
   bookdown::tufte_html2: 
     pandoc_args: ['--self-contained']
+    keep_intermediates: true
   tufte::tufte_handout:
     citation_package: natbib
     latex_engine: xelatex
-  tufte::tufte_book:
+  bookdown::tufte_book2:
     citation_package: natbib
     latex_engine: xelatex
-  tufte::tufte_html: 
-    pandoc_args: ['--self-contained']
+    md_extensions: +raw_attribute
 bibliography: bibliography.bib
 link-citations: yes
+abstract: |
+  Garbarino, Slonim and Villeval (2018) describe a new method to calculate the probability distribution   of the number of liars in "coin flip" style experiments. However, their method gives 
+  erroneous confidence intervals. I explain why and describe two better
+  ways to calculate probability distributions.
 ---
 
 
@@ -58,7 +62,7 @@ set.seed(19751027)
 
 nreps <- 1000L
 rewrite_csv <- FALSE # set to TRUE to (re)create the simulations CSV file
-cache_results <- FALSE # FALSE to recalculate all results. TRUE for speed.
+cache_results <- TRUE # FALSE to recalculate all results. TRUE for speed.
 ```
 
 ```{r parameters}
@@ -482,7 +486,8 @@ the probability that the $N - L$ honest people saw $R - L$ heads:
 
 One can then calculate the proportions of liars as $L/N$. Note that we are now directly estimating
 how many liars are in the whole sample $N$, where a liar is someone who always reports heads. From
-this, one can derive confidence intervals and expected values in the usual way.
+this, one can derive confidence intervals and expected values in the usual way.^[R code to
+run these calculations is available at https://github.com/hughjonesd/GSV-comment.]
 
 For the estimation here, I used a uniform prior, with $Pr(L) = \frac{1}{N+1}$ for $L$ in  0
 to $N$.
