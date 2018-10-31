@@ -144,3 +144,30 @@ posterior_quantile <- function (q, pstr) {
   return(L_quantiles) 
 }
 
+#' Checks coverage of confidence intervals by simulations
+#'
+#' @param L True number of liars
+#' @param N Sample size
+#' @param P Probability of bad outcome
+#' @param CI Confidence interval between 0 and 1
+#' @param nreps Number of simulations to run
+#' @param prior_fn A one-argument function which returns a N+1 length vector of probabilities
+#'
+#' @return
+#' @export
+#'
+#' @examples
+#' check_ci_coverage(15, 30, P = 0.5)
+#' check_ci_coverage(15, 30, P = 0.5, CI = 0.99)
+check_ci_coverage <- function (L, N, P, CI = 0.95, nreps = 1000, prior_fn = uniform_prior) {
+  tail <- (1 - CI)/2
+  
+  within_ci <- replicate(nreps, {
+    heads <- L + rbinom(1, N - L, prob = 1 - P)
+    pstr <- update_prior(heads, N, P, prior = prior_fn(N))
+    bounds <- posterior_quantile(c(tail, 1 - tail), pstr)
+    bounds[1] <= L && L <= bounds[2] 
+  })
+  
+  return(mean(within_ci))
+}
