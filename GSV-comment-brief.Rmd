@@ -15,13 +15,15 @@ output:
     md_extensions: +raw_attribute
 bibliography: bibliography.bib
 link-citations: yes
-abstract: |
-  Garbarino, Slonim and Villeval (2018) describe a new method to calculate the probability distribution   of the number of liars in "coin flip" style experiments. However, their method gives 
-  erroneous confidence intervals. I explain why and describe two better
-  ways to calculate probability distributions.
+
 ---
 
 
+>  Garbarino, Slonim and Villeval (2018) describe a new method to calculate the probability distribution 
+>  of the number of liars in "coin flip" style experiments. However, their method gives 
+>  erroneous confidence intervals. I explain why and describe two better
+>  ways to calculate probability distributions.
+  
 @Garbarino2018 -- GSV from here on -- introduce a method to estimate the prevalence of lying in coin flip style experiments,
 where participants are paid for reporting a high outcome of a random variable, such as heads on a coin flip, 
 and where the true coin outcome is not observed. The input of the method is the number of "heads" 
@@ -714,8 +716,7 @@ style experiment.
 1. Do not use the GSV confidence intervals.
 2. If your N is reasonably large, say at least 100, you can safely use standard frequentist 
   confidence intervals and tests.
-3. If your N is too small for point 2 to apply, it may be too small, since results will 
-  depend on methods used and on one's priors.
+3. If your N is too small for point 2 to apply, it may be too small, full stop.
 4. If increasing your N is not possible for whatever reason, consider using Bayesian methods to find
   confidence intervals and point estimates. To estimate differences between subgroups, consider
   empirical Bayes with a prior derived from the pooled sample.
