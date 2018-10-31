@@ -161,6 +161,7 @@ posterior_quantile <- function (q, pstr) {
 #' check_ci_coverage(15, 30, P = 0.5, CI = 0.99)
 check_ci_coverage <- function (L, N, P, CI = 0.95, nreps = 1000, prior_fn = uniform_prior) {
   tail <- (1 - CI)/2
+  stopifnot(L <= N, P <= 1, P >= 0, CI <= 1, CI >= 0, is.function(prior_fn))
   
   within_ci <- replicate(nreps, {
     heads <- L + rbinom(1, N - L, prob = 1 - P)
