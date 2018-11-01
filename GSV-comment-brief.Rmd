@@ -20,22 +20,35 @@ link-citations: yes
 
 
 >  Garbarino, Slonim and Villeval (2018) describe a new method to calculate the probability distribution 
->  of the number of liars in "coin flip" style experiments. However, their method gives 
+>  of the number of liars in "coin flip" style experiments. However, their method appears 
 >  erroneous confidence intervals. I explain why and describe two better
 >  ways to calculate probability distributions.
-  
-@Garbarino2018 -- GSV from here on -- introduce a method to estimate the prevalence of lying in coin flip style experiments,
-where participants are paid for reporting a high outcome of a random variable, such as heads on a coin flip, 
-and where the true coin outcome is not observed. The input of the method is the number of "heads" 
-reports, $R$, from a sample of size $N$, along with the probability $P$ of the *low* outcome on
-the random variable. They claim that their method can estimate the full distribution of
+
+Some people are honest, while others will lie whenever it benefits them. We would like to know the
+prevalence of lying, since a society where many people lie is likely to experience
+economic and social problems. Since we cannot simply ask people if they are liars, one way to
+estimate the proportion of liars in a group is to ask them to report the result of a coin flip or
+other random device, offering them a payment if they report heads. Liars don't always lie: they 
+only lie when it benefits them. So they always report heads irrespective of the true coin flip.
+^[@Garbarino2018 maintain this assumption and so shall I.] If there are many more heads than
+we would expect by chance, we can assume many people are lying. But how many?
+
+A naïve estimate would be that if e.g. 80 people of 100 report heads, then on average 50 really saw
+heads and 60% (30/50) of the remainder are lying. More generally, from $R$ reports of a good outcome
+in a sample of size $N$, where the _bad_ outcome happens with probability $P$, we can estimate that
+a proportion $\frac{R/N - (1-P)}{P}$ are lying [@abeler2016preferences]. The problem with this approach is that the number of heads is not
+fixed. If we see 1 out of 3 people reporting heads, this method estimates there are less than zero
+liars. But it is still possible that everyone saw heads and 1 person lied.
+
+@Garbarino2018 -- GSV from here on -- introduce an alternative method. They claim that their method 
+corrects for this problem and can estimate the full distribution of
 lying outcomes, and they recommend using it for confidence intervals, hypothesis testing and power 
 calculations.
 
 Table 3 of GSV reports Monte Carlo simulations, which show that the probability of a Type II error
 can be up to 50 per cent. GSV define a Type II error as the 95% confidence interval not containing
 the true value. A 95% confidence interval which only contains the true value 50% of the time
-is unusual. 
+is unusual. What is going on?
 
 
 ```{r setup, include = FALSE}
@@ -65,9 +78,9 @@ set.seed(19751027)
 nreps <- 1000L
 rewrite_csv <- FALSE # set to TRUE to (re)create the simulations CSV file
 cache_results <- TRUE # FALSE to recalculate all results. TRUE for speed.
-```
-
-```{r parameters}
+sample_from_pop <- TRUE # if TRUE, the number of liars in the sample is randomly drawn 
+                        # from a population with `Liars` liars. 
+                        # If FALSE it is fixed at `Liars * N`.
 
 params <-   list(
   N     = c(10, 50, 100, 500),
@@ -77,6 +90,7 @@ params <-   list(
 
 ci_levels <- c(90L, 95L, 99L)
 ```
+
 
 ```{r generate-data, cache = cache_results}
 
