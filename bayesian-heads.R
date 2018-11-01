@@ -133,7 +133,7 @@ naive_prob_L <- function (heads, N, P) {
 #' @return 
 #' A data frame with two columns, "diff" and "prob". "diff"
 #' gives a possible difference between the proportion of liars
-#' in group 1 and group 2 (positive values mean group 1 has more).
+#' in group 1 and group 2 (positive values mean that group 1 has more).
 #' "prob" gives the posterior probability of that outcome.
 #' 
 #' @examples
