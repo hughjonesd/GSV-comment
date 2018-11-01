@@ -25,6 +25,7 @@ bibliography: bibliography.bib
 link-citations: yes
 fontsize: 12pt
 mainfont: Times New Roman
+mathfont: Times New Roman
 ---
 
 
@@ -189,10 +190,10 @@ sim_output <- sim_data %>%
       select(N, R, P, CI) %>% 
       distinct()
 
+  path_root <- paste0("GSV-sims", if (sample_from_pop) "-pop-sample")
+
 if (rewrite_csv) {
-  path <- paste0("GSV-sims", if (sample_from_pop) "-pop-sample", ".csv")
-  
-  readr::write_csv(sim_output, path = path)
+  readr::write_csv(sim_output, path = paste0(path_root, ".csv"))
 
   # the java only lets you select a document from your home directory
   copied_to_home_dir_ok <- file.copy(path, normalizePath("~"), overwrite = TRUE)
@@ -222,7 +223,8 @@ sim_data$expected_R <- NULL
 
 ```{r gather-estimates, cache = cache_results}
 
-gsv_estimates <- suppressMessages(readr::read_csv(normalizePath("~/sim-outputOutput.csv")))
+output_path <- paste0(path_root, "Output.csv")
+gsv_estimates <- suppressMessages(readr::read_csv(normalizePath(paste0("~/", output_path))))
 
 sim_est <- left_join(sim_est, gsv_estimates, by = c("N", "R", "P", "CI"))
 
