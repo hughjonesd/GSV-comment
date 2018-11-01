@@ -1,5 +1,5 @@
 ---
-title: "Lies and the lying liars who tell them: comment on Garbarino, Slonim and Villeval (2018)"
+title: "Lies, versus the lying liars who tell them: comment on Garbarino, Slonim and Villeval (2018)"
 author: "David Hugh-Jones"
 date: "`r Sys.Date()`"
 output:
@@ -20,7 +20,7 @@ link-citations: yes
 
 
 >  Garbarino, Slonim and Villeval (2018) describe a new method to calculate the probability distribution 
->  of the number of liars in "coin flip" style experiments. However, their method gives 
+>  of the number of liars in "coin flip" style experiments. I run simulations showing that their method almost always gives 
 >  erroneous confidence intervals. I explain why and describe two better
 >  ways to calculate probability distributions.
   
