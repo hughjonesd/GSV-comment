@@ -9,7 +9,6 @@
 #' @param P Probability of *bad* outcome
 #'
 #' @return
-#' @export
 #'
 #' @examples
 #' prob_report_given_L(0:3, 2, 3, 0.5)
@@ -44,7 +43,6 @@ prob_report_given_L <- function (L, heads, N, P) {
 #'   `prior[2]` is the prob that L == 1, etc.
 #'
 #' @return A vector of posterior probabilities
-#' @export
 #'
 #' @examples
 #' probs_0_to_10 <- prob_L_given_report(0:10, 13, 20, 0.5, uniform_prior(20))
@@ -67,7 +65,6 @@ prob_L_given_report <- function(L, heads, N, P, prior) {
 #' @param N sample size
 #'
 #' @return The prior
-#' @export
 #'
 #' @examples
 #' uniform_prior(5)
@@ -83,7 +80,6 @@ uniform_prior <- function (N) {
 #'   0 and N liars inclusive.
 #'
 #' @return The updated posterior
-#' @export
 #'
 #' @examples
 #' updated <- update_prior(33, 50, 0.5)
@@ -104,6 +100,102 @@ update_prior <- function(heads, N, P, prior = uniform_prior(N)) {
   return(pstr)
 }
 
+
+naive_prob_L <- function (heads, N, P) {
+  stopifnot(0 <= heads, heads <= N, 0 <= P, P <= 1)
+  
+  naive_prob <- (heads/N - (1- P))/P
+  if (naive_prob <= 0) {
+    stop("Naive estimate gives non-positive proportion of liars.", 
+          " Can't use this for an empirical prior.")
+  }
+  if (naive_prob >= 1) {
+    stop("Naive estimate gives proportion of liars >= 1.",
+          "Can't use this for an empirical prior.")
+  }
+  
+  return(naive_prob)
+}
+
+#' Calculate full distribution of 
+#'
+#' @param heads1 Number of reported heads in group 1
+#' @param N1 Sample size in group 1
+#' @param heads2 Number of reported heads in group 2
+#' @param N2 Sample size in group 2
+#' @param P  Probability of a bad outcome
+#' @param prior_prob_L1 Prior belief that a person in group 1 is a liar.
+#'   The default pools the groups and takes the naive estimate
+#'   (heads/N - (1-P))/P.
+#' @param prior_prob_L2 Prior belief that a person in group 2 is a liar.
+#'   Shared with group 1 by default
+#'
+#' @return 
+#' A data frame with two columns, "diff" and "prob". "diff"
+#' gives a possible difference between the proportion of liars
+#' in group 1 and group 2 (positive values mean group 1 has more).
+#' "prob" gives the posterior probability of that outcome.
+#' 
+#' @examples
+#' GB_RU <- compare_groups(46, 89, 71, 100, 0.5)
+#'
+#' cdf <- cumsum(GB_RU$prob)
+#' plot(GB_RU$diff, cdf, type = "s", xlim = c(-.25, .25))
+#' 
+#' # 95% confidence intervals:
+#' ci_low <- max(which(cdf < 0.025))
+#' ci_hi  <- min(which(cdf > 0.975))
+#' GB_RU$diff[c(ci_low, ci_hi)]
+#' 
+#' # mean difference:
+#' sum(GB_RU$diff * GB_RU$prob)
+#' 
+#' # compare:
+#' prop_L <- (46 + 71)/(89 + 100) * 2 - 1
+#' pstr_GB <- update_prior(46, 89, 0.5, dbinom(0:89, 89, prop_L))
+#' pstr_RU <- update_prior(71, 100, 0.5, dbinom(0:100, 100, prop_L))
+#' posterior_mean(pstr_GB)/89 - posterior_mean(pstr_RU)/100
+compare_groups <- function (heads1, N1, heads2, N2, P, 
+     prior_prob_L1 = naive_prob_L(heads1 + heads2, N1 + N2, P),
+     prior_prob_L2 = prior_prob_L1) {
+  stopifnot(0 <= heads1, heads1 <= N1, 0 <= heads2, heads2 <= N2, 
+      0 <= P, P <= 1, 0 <= prior_prob_L1, prior_prob_L2 <= 1,
+      0 <= prior_prob_L2, prior_prob_L2 <= 1)
+  
+  prior1 <- dbinom(0:N1, N1, prior_prob_L1)
+  prior2 <- dbinom(0:N2, N2, prior_prob_L2)
+  
+  pstr1 <- update_prior(heads1, N1, P, prior1)
+  pstr2 <- update_prior(heads2, N2, P, prior2)
+  
+  probs_diffs <- pstr1 %*% t(pstr2)
+    # for L1 = 0:N1 and for L2= 0:N2, work out difference in prob of liars
+  diffs <- outer(0:N1/N1, 0:N2/N2, "-")
+  
+  diffs <- c(diffs)  
+  probs_diffs <- c(probs_diffs)
+  check_posterior(probs_diffs)
+  
+  probs_diffs <- probs_diffs[order(diffs)]
+  diffs <- sort(diffs)
+  
+  # sum probs where the value of diffs are equal:
+  # Use rle to define "different values" (tapply would turn it into
+  # a factor, rounding after 3 dec places)
+  rled <- rle(diffs)
+  unique_diffs <- rled$values
+  rled$values <- seq_along(rled$values) # ensure all values have own label
+  same_diff_values <- inverse.rle(rled)
+  probs_unique_diffs <- tapply(probs_diffs, same_diff_values, sum)
+  
+  dist <- data.frame(
+          diff = unique_diffs, 
+          prob  = probs_unique_diffs
+        )
+  return(dist)
+}
+
+
 check_posterior <- function(pstr) {
   stopifnot(isTRUE(all.equal(sum(pstr), 1)), all(pstr >= 0))
 }
@@ -113,7 +205,6 @@ check_posterior <- function(pstr) {
 #' @param pstr A vector of positive numbers summing to 1
 #'
 #' @return
-#' @export
 #'
 #' @examples
 posterior_mean <- function (pstr) {
@@ -129,7 +220,6 @@ posterior_mean <- function (pstr) {
 #' @param pstr A vector of positive numbers summing to 1
 #'
 #' @return A vector of values at the quantiles
-#' @export
 #'
 #' @examples
 posterior_quantile <- function (q, pstr) {
@@ -154,7 +244,6 @@ posterior_quantile <- function (q, pstr) {
 #' @param prior_fn A one-argument function which returns a N+1 length vector of probabilities
 #'
 #' @return
-#' @export
 #'
 #' @examples
 #' check_ci_coverage(15, 30, P = 0.5)

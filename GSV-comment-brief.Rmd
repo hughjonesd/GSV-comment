@@ -1,5 +1,5 @@
 ---
-title: "Lies and the lying liars who tell them: comment on Garbarino, Slonim and Villeval (2018)"
+title: "Lies, versus the lying liars who tell them: comment on Garbarino, Slonim and Villeval (2018)"
 author: "David Hugh-Jones"
 date: "`r Sys.Date()`"
 output:
@@ -15,13 +15,14 @@ output:
     md_extensions: +raw_attribute
 bibliography: bibliography.bib
 link-citations: yes
-
+editor_options: 
+  chunk_output_type: console
 ---
 
 
 >  Garbarino, Slonim and Villeval (2018) describe a new method to calculate the probability distribution 
 >  of the number of liars in "coin flip" style experiments. However, their method appears 
->  erroneous confidence intervals. I explain why and describe two better
+>  to give erroneous confidence intervals. I explain why and describe two better
 >  ways to calculate probability distributions.
 
 Some people are honest, while others will lie whenever it benefits them. We would like to know the
@@ -81,14 +82,8 @@ cache_results <- TRUE # FALSE to recalculate all results. TRUE for speed.
 sample_from_pop <- TRUE # if TRUE, the number of liars in the sample is randomly drawn 
                         # from a population with `Liars` liars. 
                         # If FALSE it is fixed at `Liars * N`.
-
-params <-   list(
-  N     = c(10, 50, 100, 500),
-  Liars = seq(0, 1, 0.1),
-  P     = c(.2, .5, .8)
-)
-
-ci_levels <- c(90L, 95L, 99L)
+estimate_lies_not_liars <- FALSE # if FALSE, use Liars/N as ground truth
+                                # if TRUE, use (R-heads)/(N-heads)
 ```
 
 
@@ -103,17 +98,27 @@ true_data$Liars <- round(true_data$Liars * true_data$N, 0)
 
 
 simulate_cointoss <- function (row) {
-  row["Liars"] + sum(rbinom(row["N"] - row["Liars"], 1, 1 - row["P"]))
+  h_liars <- rbinom(1, row["Liars"], 1 - row["P"])
+  h_honest <- rbinom(1, row["N"] - row["Liars"], 1 - row["P"])
+  R <- row["Liars"] + h_honest
+  heads <- h_honest + h_liars
+  c(R, heads)
 }
+
 
 results <- replicate(nreps, apply(true_data, 1, simulate_cointoss))
 
-sim_data <- true_data %>%  
-      cbind(as_tibble(results)) %>% 
-      tidyr::gather("sim", "R", starts_with("V")) %>% 
-      mutate(
-        sim = as.numeric(sub("^V", "", sim)),
-      ) %>% 
+results_R <- results[1, , ]
+results_heads <- results[2, , ]
+colnames(results_R) <- paste0("R", 1:nreps)
+colnames(results_heads) <- paste0("heads", 1:nreps)
+
+sim_data <- true_data %>% 
+      cbind(as_tibble(results_R)) %>% 
+      cbind(as_tibble(results_heads)) %>% 
+      gather("stat", "result", starts_with("R"), starts_with("heads")) %>%
+      extract(stat, c("stat", "sim"), regex="(.*?)(\\d+)", convert = TRUE) %>%
+      spread(stat, result) %>%  
       arrange(N, Liars, P)
 
 nci_levels <- length(ci_levels)
@@ -318,11 +323,22 @@ sim_est <- left_join(sim_est, sim_tmp, by = c("N", "P", "R", "CI"))
 # reshape to long by method
 sim_est %<>%
       tidyr::gather(measure, value, contains(".")) %>% 
-      tidyr::extract(measure, into = c("statistic", "method"), regex = "(.*)\\.(.*)") %>% 
+      tidyr::extract(measure, into = c("statistic", "method"), regex = "(LB|EV|UB)\\.(.*)") %>% 
       tidyr::spread(statistic, value) 
 
+
+# alternative "ground truth" is proportion of lies: (R - heads)/(N - heads)
+if (estimate_lies_not_liars) {
+  sim_est %<>% mutate(
+          true_prop = (R - heads)/(N - heads)
+        )
+} else {
+  sim_est %<>% mutate(
+          true_prop = Liars/N
+        )
+}
+
 sim_est %<>% mutate(
-        true_prop = Liars/N,
         within_ci = true_prop >= LB & true_prop <= UB,
         error     = EV - true_prop,
         error_sq  = error^2
@@ -343,7 +359,7 @@ contained the true value. Table \@ref(tab:coverage-overall) shows the results.
 
 coverage <- sim_est %>% 
       group_by(method, CI) %>% 
-      summarize(mean_in_ci = mean(within_ci))
+      summarize(mean_in_ci = mean(within_ci, na.rm = TRUE))
 
 cov_overall <- coverage %>% 
       ungroup() %>% 
@@ -429,7 +445,7 @@ disagg <- sim_est %>%
       group_by(
         `R/N:` = R/N, N, P, CI
       ) %>% 
-      summarize(mean_in_ci = mean(within_ci), prop = n()/nrow(.)) %>% 
+      summarize(mean_in_ci = mean(within_ci, na.rm = TRUE), prop = n()/nrow(.)) %>% 
       mutate(CI = paste0("CI ", CI, "%")) %>% 
       spread(CI, mean_in_ci) %>% 
       mutate(ok  = `CI 95%` > 0.95)
@@ -455,7 +471,10 @@ coverage_rn <- sim_est %>%
       ) %>% 
       mutate(pct_cases = n()/nrow(.)) %>% 
       group_by(`R/N:`, CI) %>% 
-      summarize(mean_in_ci = mean(within_ci), `Pct cases` = pct_cases[1]) %>% 
+      summarize(
+        mean_in_ci  = mean(within_ci, na.rm = TRUE), 
+        `Pct cases` = pct_cases[1]
+      ) %>% 
       mutate(CI = paste0("CI ", CI, "%")) %>% 
       spread(CI, mean_in_ci)
     
@@ -530,7 +549,7 @@ perform much better than the GSV approach.
 coverage_N <- sim_est %>% 
       filter(N <= 50) %>% 
       group_by(method, CI, N) %>% 
-      summarize(mean_in_ci = mean(within_ci)) %>% 
+      summarize(mean_in_ci = mean(within_ci, na.rm = TRUE)) %>% 
       ungroup() %>% 
       mutate(
         CI = paste0("CI ", CI, "%"),
@@ -571,7 +590,7 @@ one is sure that the true $L/N$ is rather high.
 sim_est %>% 
       filter(CI == 90) %>% 
       group_by(method, N) %>% 
-      summarize(mean_sq_error = mean(error_sq)) %>% 
+      summarize(mean_sq_error = mean(error_sq, na.rm = TRUE)) %>% 
       spread(N, mean_sq_error, sep = ": ") %>% 
       ungroup() %>% 
       mutate(
@@ -679,6 +698,11 @@ Table \@ref(tab:country-comparisons) shows Bayesian comparisons for selected cou
 estimates have "shrunk" towards the pooled mean from the naive estimates, differences remain
 significant, partly because the pooled prior has made posterior confidence intervals narrower.
 
+This approach has a nice interpretation, somewhat analogous
+to the use of the null hypothesis in frequentist methods. We start from the 
+belief that the proportion of liars is the same across all groups. The posterior
+then shows how much the evidence changes this belief.
+
 ```{r country-comparisons}
 
 prob_country_less <- function (ctry1, ctry2) {
@@ -782,7 +806,7 @@ remain too small, as shown in Table \@ref(tab:coverage-recalc).
 coverage_recalc <- sim_est_recalc %>% 
       filter(method == "recalc") %>% 
       group_by(CI) %>% 
-      summarize(mean_in_ci = mean(within_ci)) %>% 
+      summarize(mean_in_ci = mean(within_ci, na.rm = TRUE)) %>% 
       ungroup() %>% 
       mutate(
         CI = paste0("CI: ", CI, "%"),
@@ -809,7 +833,7 @@ simulation. This makes the pattern clear: coverage gets worse as the proportion 
 coverage_treat_gsv <- sim_est %>% 
       filter(method == "gsv") %>% 
       group_by(CI, N, P) %>% 
-      summarize(mean_in_ci = mean(within_ci)) %>% 
+      summarize(mean_in_ci = mean(within_ci, na.rm = TRUE)) %>% 
       ungroup() %>% 
       mutate(
         P = factor(paste0(P, "%")),
@@ -830,7 +854,7 @@ ggplot(coverage_treat_gsv, aes(P, mean_in_ci, colour = P)) +
 coverage_grp_gsv <- sim_est %>% 
       filter(method == "gsv") %>% 
       group_by(CI, N, Liars, P) %>% 
-      summarize(mean_in_ci = mean(within_ci)) %>% 
+      summarize(mean_in_ci = mean(within_ci, na.rm = TRUE)) %>% 
       ungroup() %>% 
       mutate(
         P = factor(paste0(P, "%")),
@@ -856,18 +880,22 @@ for all values of $L/N$ up to 80%.
 errors_true_prop <- sim_est %>%       
       filter(CI == 90, N <= 50) %>% 
       group_by(method, true_prop) %>% 
-      summarize(mean_sq_error = mean(error_sq)) %>% 
+      summarize(mean_sq_error = mean(error_sq, na.rm = TRUE)) %>% 
       ungroup() %>% 
       mutate(
         method = recode(method, gsv = "GSV", simple = "Frequentist", ubayes = "Bayesian")
       ) %>% 
       rename(`True L/N` = true_prop, Method = method)
 
-ggplot(errors_true_prop, aes(`True L/N`, mean_sq_error, colour = Method)) + 
-      geom_line() + 
-      geom_point() +
+g <- ggplot(errors_true_prop, aes(`True L/N`, mean_sq_error, colour = Method)) + 
       ylab("Mean square error") + 
       scale_x_continuous(breaks = 0:5/5)
+
+# proportion of liars is set to 0:10/10, but of lies is random,
+# so we have to use a smoothing line
+if (estimate_lies_not_liars) g + geom_smooth(method="loess") else 
+      g + geom_line() + geom_point()
+
 ```
 
 ```{r errors-disagg, include = FALSE}
@@ -875,14 +903,15 @@ ggplot(errors_true_prop, aes(`True L/N`, mean_sq_error, colour = Method)) +
 errors_disagg <- sim_est %>%       
       filter(CI == 90, N <= 50) %>% 
       group_by(rn = findInterval(R/N, 0:10/10, rightmost.closed = TRUE), N, P, method) %>% 
-      summarize(mean_sq_error = mean(error_sq)) %>% 
+      summarize(mean_sq_error = mean(error_sq, na.rm = TRUE)) %>% 
       mutate(
         method = recode(method, gsv = "GSV", simple = "Frequentist", ubayes = "Bayesian")
       ) %>% 
       rename(`R/N` = rn, Method = method)
 
-ggplot(errors_disagg, aes(`R/N`, mean_sq_error, colour = Method)) + 
-      geom_line() + 
-      geom_point() +
+g <- ggplot(errors_disagg, aes(`R/N`, mean_sq_error, colour = Method)) + 
       ylab("Mean square error") + facet_wrap(~N + P, scales = "free_y")
+
+if (estimate_lies_not_liars) g + geom_smooth(method="loess") else 
+      g + geom_line() + geom_point()
 ```
