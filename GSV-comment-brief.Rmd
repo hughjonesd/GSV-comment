@@ -42,7 +42,7 @@ knitr::opts_chunk$set(tidy = FALSE, cache.extra = packageVersion('tufte'))
 options(htmltools.dir.version = FALSE)
 knitr::opts_chunk$set(echo = FALSE)
 options(huxtable.knitr_output_format = "latex")
-source("bayesian-heads.R")
+source("bayesian-heads-cts.R")
 suppressPackageStartupMessages({
   library(Hmisc)
   library(magrittr)
@@ -53,24 +53,26 @@ suppressPackageStartupMessages({
   library(ggplot2)
   library(broom)
   library(huxtable)
+  loadNamespace("MASS")
 })
 
 huxtable::set_default_properties(position = "left", top_padding = 12, bottom_padding = 6)
 set.seed(19751027)
 
+# how many simulations to run:
 nreps <- 1000L
 
-# set to FALSE to recalculate all results; TRUE for speed:
-cache_results <- FALSE  
+# set to FALSE to recalculate all confidence interval estimates; TRUE for speed:
+cache_results <- TRUE
 
-# set to TRUE to (re)create the simulations CSV file:
-rewrite_csv <- FALSE
+# set to TRUE to (re)create the simulations CSV file, then stop:
+rerun_java <- FALSE
 
 # if TRUE, the number of liars in each simulation is randomly drawn
 # from a population with `Liars` liars.
 # If FALSE, the number of liars is fixed at `Liars * N`.
 # If you change this, you may need to recreate the simulations CSV file
-sample_from_pop <- FALSE 
+sample_from_pop <- TRUE 
 
 # if FALSE, use L/N as ground truth;
 # if TRUE, use (R-heads)/(N-heads):
@@ -103,11 +105,11 @@ if (! sample_from_pop && ! estimate_lies_not_liars) method_used_statement <- ""
 
 
 TODO XXX: point out the claims they make. Add your sims of when the posterior is wrong
-and intervals fail even for (R-T)/(N-T).
+and intervals fail even for (R-T)/(N-T). Convert to sampling from a cts distrib.
 
 **`r method_used_statement`**
 
-Some people are honest, while others will lie whenever it benefits them. We would like to understand
+Some people are honest, while others are likely to lie whenever it benefits them. We would like to understand
 the prevalence of lying, because dishonesty may be economically and socially harmful. Since we
 cannot simply ask people if they are liars, one way to estimate the proportion of liars in a group
 is to ask them to report the result of a coin flip or other random device, offering them a payment
@@ -190,16 +192,20 @@ sim_output <- sim_data %>%
       select(N, R, P, CI) %>% 
       distinct()
 
-  path_root <- paste0("GSV-sims", if (sample_from_pop) "-pop-sample")
+file_root <- paste0("GSV-sims", if (sample_from_pop) "-pop-sample")
+sim_output_file <- paste0(file_root, "Output.csv")
+if (rerun_java) {
+  sim_input_file <- paste0(file_root, ".csv")
+  readr::write_csv(sim_output, path = sim_input_file)
 
-if (rewrite_csv) {
-  readr::write_csv(sim_output, path = paste0(path_root, ".csv"))
-
-  # the java only lets you select a document from your home directory
-  copied_to_home_dir_ok <- file.copy(path, normalizePath("~"), overwrite = TRUE)
+  # the java only lets you select a document from your home directory X-o
+  copied_to_home_dir_ok <- file.copy(sim_input_file, normalizePath("~"), overwrite = TRUE)
   stopifnot(copied_to_home_dir_ok)
-  # now run java -jar LyingCalculator.jar from the LyingCalculator directory
-  # make sure the old output file (xxxOutput.csv) is deleted first, or it will be appended to!
+  stop(sprintf("Now run java -jar LyingCalculator.jar and input '%s'", sim_input_file),
+        " from your home directory.\n",
+        "Make sure the old output file is deleted first!\n",
+        sprintf("The java will create a new file called '%s'.\n", sim_output_file), 
+        "Leave it in your home directory, set `rerun_java` to FALSE and reknit this file.")
 }
 
 sim_est <- sim_data
@@ -223,8 +229,7 @@ sim_data$expected_R <- NULL
 
 ```{r gather-estimates, cache = cache_results}
 
-output_path <- paste0(path_root, "Output.csv")
-gsv_estimates <- suppressMessages(readr::read_csv(normalizePath(paste0("~/", output_path))))
+gsv_estimates <- suppressMessages(readr::read_csv(normalizePath(file.path("~", sim_output_file))))
 
 sim_est <- left_join(sim_est, gsv_estimates, by = c("N", "R", "P", "CI"))
 
@@ -244,9 +249,7 @@ sim_est %<>%
 
 ```{r bayesian-estimates, cache = cache_results}
 
-my_prior <- uniform_prior
-# alternative:
-# my_prior <- function (N) dbinom(0:N, N, p = 0.5)
+my_prior <- dunif
 
 bayes_est <- sim_output %>% 
       rowwise() %>% 
@@ -255,16 +258,16 @@ bayes_est <- sim_output %>%
                 heads = .$R, 
                 N = .$N, 
                 P = .$P/100, 
-                prior = my_prior(.$N)
+                prior = my_prior
               )
         ci <- .$CI / 100
         ci_qs <- c(1/2 - ci/2, 1/2 + ci/2)
-        cis <- posterior_quantile(ci_qs, pstr)
+        cis <- dist_quantile(pstr, ci_qs)
         # calculate quantities as prop dishonest
         tibble(
-          EV.ubayes = posterior_mean(pstr)/.$N,
-          LB.ubayes = cis[1]/.$N, 
-          UB.ubayes = cis[2]/.$N
+          EV.ubayes = dist_mean(pstr),
+          LB.ubayes = cis[1], 
+          UB.ubayes = cis[2]
         )
       })
 bayes_est <- cbind(sim_output, bayes_est)
@@ -328,7 +331,6 @@ prop_liars_ci_gsv <- function (ci, heads, N, P) {
   stopifnot(0 <= ci, ci <= 1, heads <= N, 0 <= heads, 0 <= P, P <= 1)
   
   dist_L <- dist_L_gsv(heads, N, P)
-  check_posterior(dist_L)
   stopifnot(length(dist_L) == heads + 1)
   
   pl <- prop_liars(0:heads, heads, N)
@@ -780,9 +782,9 @@ A non-informative prior is a reasonable choice. Alternatively one might use info
 from previous meta-analyses such as @abeler2016preferences. If the sample size is large enough,
 the choice of prior should not matter much.
 
-When comparing the dishonesty rates of different groups, a possible approach is to use the
-"empirical Bayes" method [@casella1985introduction]. This means that one estimates a common prior
-from the pooled data, before updating the prior for each individual group.
+When comparing the dishonesty rates of different groups, an interesting approach is to use the
+"empirical Bayes" method [@casella1985introduction]. This piece of statistical jiu-jitsu involves
+estimating a common prior from the pooled data, before updating the prior for each individual group.
 
 
 ```{r hj-data}
@@ -799,7 +801,12 @@ nats <- dfr %>%
         prop_heads = heads/N,
         prop_liars = 2*prop_heads - 1
       )
-pooled_prop_liars <- mean(dfr$heads == 1) * 2 - 1
+
+
+pp <- MASS::fitdistr(nats$prop_liars, "beta", start = list(
+        shape1 = 1, shape2 = 1
+      ))
+pooled_prior <- function (x) dbeta(x, pp$estimate["shape1"], pp$estimate["shape2"])
 
 distribs <- apply(nats[, c("heads", "N")], 1, function (r) {
   N <- r["N"]
@@ -807,34 +814,26 @@ distribs <- apply(nats[, c("heads", "N")], 1, function (r) {
       heads = r["heads"],
       N = N,
       P = 0.5, 
-      prior = dbinom(0:N, N, p = pooled_prop_liars)
+      prior = pooled_prior
   )
 })
 
-
 names(distribs) <- nats$resnat
 
-nat_means <- sapply(distribs, posterior_mean)
-nat_cis <- sapply(distribs, posterior_quantile, q = c(0.025, 0.975))
+nat_means <- sapply(distribs, dist_mean)
+nat_cis <- sapply(distribs, dist_quantile, probs = c(0.025, 0.975))
 rownames(nat_cis) <- c("ci.low", "ci.high")
 
 nats <- cbind(nats, t(nat_cis), mean = nat_means)
 
-nats %<>% 
-      mutate(
-        mean = mean/N,
-        ci.low = ci.low/N,
-        ci.high = ci.high/N
-      ) %>% 
-      arrange(mean)
+nats %<>% arrange(mean)
 
 # nats$resnat <- factor(nats$resnat, levels = nats$resnat)
 ```
 
 For example, @hugh2016honesty estimates the dishonesty rates of 15 nations using a coin flip
-experiment. The pooled estimate of the proportion of liars in the sample is given by *2R/N - 1* = 
-`r round(pooled_prop_liars, 2)`. With *N* = `r nrow(dfr)`, this will not be much affected by 
-sampling variation in the number of heads. We can use a binomial distribution with this as the prior.
+experiment. We can fit a beta distribution using the 15 observations of *2R/N - 1*. This will be
+our prior.
 
 ```{r hj2016-pic, fig.cap = "Posterior means and confidence intervals for proportion dishonest in 15 countries. Crosses are naïve estimates.", fig.align="center", fig.width=5.5, fig.height=4}
 
@@ -850,13 +849,13 @@ ggplot(nats, aes(x = factor(resnat, levels = resnat), y = mean, fill = mean)) +
 ```
 
 
-Results are shown in Figure \ref{fig:hj2016-pic}, with means and 95% confidence intervals. There
-is substantial shrinkage from the "naïve" per-country estimates found by calculating *2R/N - 1*
-separately for each country). One of the strengths of empirical Bayes,  as @casella1985introduction
-points out, is that it "anticipates regression to the mean". That is, as there is noise in the data,
-the most and least honest groups in the data probably had some extreme error terms. So the
-British people in the sample may be less honest, and the Chinese people more honest, than the per-group 
-data suggest.
+Results are shown in Figure \ref{fig:hj2016-pic}, with means and 95% confidence intervals. There is
+some "shrinkage" towards the pooled mean from the naïve per-country estimates found by calculating
+*2R/N - 1* separately for each country). One of the strengths of empirical Bayes,  as
+@casella1985introduction points out, is that it "anticipates regression to the mean". That is, as
+there is noise in the data, the most and least honest groups in the data probably had some extreme
+error terms. So the British people in the sample may be less honest, and the Chinese people more
+honest, than the per-group data suggest.
 
 # Bayesian hypothesis testing
 
@@ -865,33 +864,22 @@ probability that e.g. the true proportion of liars in sample 1 is smaller than i
 calculated from the marginal distributions in each sample:
 
 \[
-\sum_{L = 0}^{N_{1}} \sum_{M=0}^{N_{2}} Pr(L_{1} = L) Pr(L_{2} = M) \;
-  \mathbb{1}({\frac{L}{N_{1}} < \frac{M}{N_{2}})}
+\int^1_0 \int_0^{\lambda_1} \phi(\lambda_1)\phi(\lambda_2) \; \mathrm{d}\lambda_2 \mathrm{d}\lambda_1
 \]
+
 
 Table \ref{tab:country-comparisons} shows Bayesian comparisons for selected countries. Even though
 estimates have "shrunk" towards the pooled mean from the naive estimates, differences remain
 significant, partly because the pooled prior has made posterior confidence intervals narrower.
 
-This approach has a nice interpretation, analogous to the use of the null hypothesis in frequentist
-methods. We start from the belief that the proportion of liars is the same across all groups. The
-posterior then shows how much the evidence changes this belief.
 
-```{r country-comparisons}
+```{r country-comparisons, eval = FALSE}
 
-prob_country_less <- function (ctry1, ctry2) {
-  stopifnot(ctry1 %in% nats$resnat, ctry2 %in% nats$resnat)
-  N_1 <- nats$N[nats$resnat == ctry1]
-  N_2 <- nats$N[nats$resnat == ctry2]
-  heads_1 <- nats$heads[nats$resnat == ctry1]
-  heads_2 <- nats$heads[nats$resnat == ctry2]  
-  diff_dist <- compare_groups(heads1 = heads_1, N1 = N_1, heads2 = heads_2, N2 = N_2, P = 0.5)
- 
-  prob_first_less <-sum(diff_dist$prob[diff_dist$diff < 0]) 
-  return(prob_first_less)
+prob_country_more <- function (ctry1, ctry2) {
+  compare_dists(distribs[[ctry1]], distribs[[ctry2]])
 }
 
-ctry_comp <- outer(nats$resnat, nats$resnat, Vectorize(prob_country_less))
+ctry_comp <- outer(nats$resnat, nats$resnat, Vectorize(prob_country_more))
 diag(ctry_comp) <- NA
 rownames(ctry_comp) <- nats$resnat
 colnames(ctry_comp) <- nats$resnat
@@ -900,7 +888,7 @@ selected <- c("GB", "ZA", "GR", "BR", "CN")
 ctry_comp <- ctry_comp[selected, selected]
 cc_hux <- as_huxtable(ctry_comp, add_colnames = TRUE, add_rownames = TRUE) %>% 
       set_caption("Bayesian country comparisons. 
-            Cells give the probability that row country has fewer liars than column country.") %>% 
+            Cells give the probability that row country has higher \\lambda than column country.") %>% 
       set_label("tab:country-comparisons") %>% 
       set_na_string("--") %>% 
       set_number_format("%.3f") %>% 
@@ -911,17 +899,9 @@ cc_hux <- as_huxtable(ctry_comp, add_colnames = TRUE, add_rownames = TRUE) %>%
 cc_hux[1, 1] <- ''
 
 cc_hux
+
 ```
 
-
-# The population
-
-So far we have been trying to estimate the proportion of *Liars* in the sample. In fact,
-we usually care about the proportion of liars in populations from which the sample is drawn. This
-adds another layer of randomness. When *N* is large, the sample distribution should approximate
-the population distribution and either frequentist or Bayesian approaches should work. Further
-simulations, not shown, suggest that Bayesian confidence intervals are less robust than frequentist ones
-in bounding the population proportion of *Liars* when the sample is randomly drawn from the population.
 
 # Conclusion
 
