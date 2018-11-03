@@ -1,5 +1,5 @@
 ---
-title: "Lies and the lying liars who tell them"
+title: "True Lies:"
 subtitle: "Comment on Garbarino, Slonim and Villeval (2018)"
 author: "David Hugh-Jones"
 date: "`r Sys.Date()`"
