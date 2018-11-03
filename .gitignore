@@ -2,3 +2,9 @@
 .Rhistory
 .RData
 .Ruserdata
+LyingCalculator
+*_cache/
+*_files/
+GSV\ 2018.pdf
+*.tex
+*.log
