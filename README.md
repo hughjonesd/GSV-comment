@@ -7,14 +7,19 @@ To reproduce the paper, clone the repository from your command line:
 git clone https://github.com/hughjonesd/GSV-comment.git
 ```
 
-You'll also need GSV's original [lying calculator](http://lyingcalculator.gate.cnrs.fr/). 
+You'll also need GSV's original [lying calculator](http://lyingcalculator.gate.cnrs.fr/), and
+various R libraries, especially the `checkpoint` library to reproduce the state of CRAN in 
+November 2018.
+
+When you're ready, fire up your favourite R IDE and:
 
 1. Set `rerun_java <- TRUE` at the top of `GSV-comment-brief.Rmd`, and knit the document. 
 2. R will stop and ask you to run the lying calculator on the file `"GSV-sims.csv"`. Do so. 
 3. Set `rerun_java <- FALSE` and knit the document again.  
 
+## Other files
 
-The file `bayesian-heads-cts.R` contains functions to estimate the distribution of liars in a sample
+`bayesian-heads-cts.R` contains functions to estimate the distribution of liars in a sample
 using Bayesian methods. Here's an example:
 
 ```r
@@ -27,7 +32,10 @@ dist_hdr(updated)
 curve(updated)
 ```
 
-The file `GSV-heads.R` contains functions to estimate the distribution of *lies told* in a sample,
+`GSV-heads.R` contains functions to estimate the distribution of *lies told* in a sample,
 using GSV's methods. 
 
-The file `bayesian-heads.R` contains some obsolete code.
+`bayesian-heads.R` contains some obsolete code.
+
+`GSV-sims.csv` contains input for the GSV Java program. `GSV-comment-brief.Rmd` will automatically
+create this, but you can use it if you want to skip that step.
