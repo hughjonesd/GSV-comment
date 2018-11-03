@@ -1,5 +1,5 @@
 ---
-title: "True lies"
+title: "Lies and the lying liars who tell them"
 subtitle: "Comment on Garbarino, Slonim and Villeval (2018)"
 author: "David Hugh-Jones"
 date: "`r Sys.Date()`"
@@ -29,12 +29,15 @@ mathfont: Times New Roman
 ---
 
 
->  Garbarino, Slonim and Villeval (2018) describe a new method to calculate the probability distribution 
->  of the number of lies told in "coin flip" style experiments. I show that their estimates and
->  confidence intervals are flawed. I explain why, and describe two better
->  ways to estimate the probability distribution of the proportion of liars.
+> Garbarino, Slonim and Villeval (2018) describe a new method to calculate the probability
+> distribution of the proportion of lies told in "coin flip" style experiments. I show that their
+> estimates and confidence intervals are flawed. I demonstrate two better ways to estimate the 
+> probability distribution of what we are really interested in: the proportion of liars.
 
 ```{r setup, include = FALSE}
+
+library(checkpoint)
+checkpoint("2018-11-03")
 
 library(tufte)
 # invalidate cache when the tufte version changes
@@ -71,7 +74,7 @@ set.seed(19751027)
 nreps <- 1000L
 
 # set to FALSE to recalculate all confidence interval estimates; TRUE for speed:
-cache_results <- TRUE
+cache_results <- FALSE
 
 # set to TRUE to (re)create the simulations CSV file, then stop:
 rerun_java <- FALSE
@@ -438,10 +441,10 @@ inv_prob_h_l20 <- round(1/mean(h10[l10 == 0.2] == 10), 0)
 
 First, if 10 out of 10 heads are reported, you should learn two things. On the one hand, there are
 probably many liars in your sample. On the other hand, probably a lot of coins really landed heads.
-The probability distribution in (\ref{eqn:truncated-binom}) does not take account of this. In
-particular, for *R = N*, it reduces to the binomial distribution. This is not correct. For example,
-in my simulations with $P = 0.5$, the probability that there were 10 heads when $R = N = 10$ was
-about 1 in `r inv_prob_h`, not 1 in 1024. When $\\lambda = 0.2$, it is about 1 in 
+The probability distribution in equation (\ref{eqn:truncated-binom}) does not take account of this.
+In particular, for *R = N*, it reduces to the binomial distribution. This is not correct. For
+example, in my simulations with $P = 0.5$, the overall probability that there were 10 heads when $R
+= N = 10$ was about 1 in `r inv_prob_h`, not 1 in 1024. When $\lambda = 0.2$, it is about 1 in 
 `r inv_prob_h_l20`. The same is true at the other end of the scale: when *R* is low, we indeed learn
 that $T \le R$ but also that the overall distribution is not shaped like the prior.
 
@@ -468,14 +471,17 @@ But it is 100% of just one person.
 
 The first of these two problems means that the GSV distribution of *Lies* is wrong. In the appendix
 I show that their estimator can have substantial bias. In fact, it performs worse than the naïve
-estimator from (\ref{eqn:naive-estimator}), $\frac{R-(1-P)}{P}$. Also, the GSV confidence intervals do not always achieve nominal coverage of *Lies*. When the number of heads reported is either high or low, the percentage of confidence intervals containing *Lies* may fall below the nominal value.
+estimator from equation (\ref{eqn:naive-estimator}), $\frac{R-(1-P)}{P}$. Also, the GSV confidence
+intervals do not always achieve nominal coverage of *Lies*. When the number of heads reported is
+either high or low, the percentage of confidence intervals containing *Lies* may fall below the
+nominal value.
 
 The second problem means that the GSV confidence intervals are not correct for $\lambda$. We can
-tell that the second problem matters, because GSV coverage of $\lambda$ is much worse than coverage 
-of *Lies*. Also, since the GSV estimator of *Lies* is biased, it is a biased estimator of
-$\lambda$. 
+tell that the second problem matters, because the confidence interval coverage of $\lambda$ is much
+worse than coverage of *Lies*. The GSV estimator is also a biased estimator of $\lambda$.
 
 ```{r disagg-coverage}
+
 disagg <- sim_est %>% 
       filter(method=="gsv") %>% 
       group_by(
@@ -493,7 +499,7 @@ prop_ok <- disagg %>%
 ```
 
 The problem is especially bad when there are many reports of heads. In this case there were probably
-many true heads, so *T* is high and the true sample size *N - T* is low. Table \ref{tab:coverage-rn}
+many true heads, so *T* is high and the true sample size $N - T$ is low. Table \ref{tab:coverage-rn}
 shows this. It splits the simulations by the proportion of reported heads, *R/N*. Coverage levels
 fall off sharply as *R/N* increases. Note that for fair coin flips, *R/N* is typically greater than
 0.5, in the simulations and in reality.
@@ -612,7 +618,8 @@ as_huxtable(coverage_N, add_colnames = TRUE) %>%
       theme_plain() %>% 
       set_background_color(everywhere, 1, NA) %>% 
       set_top_border(c(4, 6), everywhere, 0.4) %>% 
-      set_bottom_border(6, 1, 0.4)
+      set_bottom_border(6, 1, 0.4) %>% 
+      set_right_border(everywhere, 1, 0.4)
 ```
 
 
@@ -635,15 +642,16 @@ one is sure that the true *L/N* is rather high.
 
 sim_est %>% 
       filter(CI == 90) %>% 
-      group_by(method, N) %>% 
+      mutate(
+        Method = recode(method, gsv = "GSV", simple = "Frequentist", ubayes = "Bayesian"),
+        method = NULL
+      ) %>% 
+      group_by(Method, N) %>% 
       summarize(mean_sq_error = mean(error_sq, na.rm = TRUE)) %>% 
       spread(N, mean_sq_error, sep = ": ") %>% 
       ungroup() %>% 
-      mutate(
-        method = recode(method, gsv = "GSV", simple = "Frequentist", ubayes = "Bayesian")
-      ) %>% 
       as_huxtable(add_colnames = TRUE) %>% 
-      set_caption("Mean squared errors by method and N") %>% 
+      set_caption("Mean squared errors by method and $N$") %>% 
       set_label("tab:point-estimates") %>% 
       theme_plain()
 ```
@@ -695,7 +703,7 @@ distribs <- apply(nats[, c("heads", "N")], 1, function (r) {
 names(distribs) <- nats$resnat
 
 nat_means <- sapply(distribs, dist_mean)
-nat_cis <- sapply(distribs, dist_quantile, probs = c(0.025, 0.975))
+nat_cis <- sapply(distribs, dist_hdr, conf_level = 0.95)
 rownames(nat_cis) <- c("ci.low", "ci.high")
 
 nats <- cbind(nats, t(nat_cis), mean = nat_means)
@@ -716,7 +724,8 @@ ggplot(nats, aes(x = factor(resnat, levels = resnat), y = mean, fill = mean)) +
       geom_linerange(aes(ymin = ci.low,ymax = ci.high)) +
       geom_point(aes(y = prop_liars), shape = 4, size = 3, colour = "red") +
       xlab("Nation") + ylab("Prop. liars") +
-      viridis::scale_fill_viridis(option = "E", guide = FALSE) + 
+      scale_fill_viridis_c(option = "A", guide = "none") + 
+      theme_light()+
       coord_flip()
 
 ```
