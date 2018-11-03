@@ -2,6 +2,7 @@
 # Bayesian ways to calculate the probability of people in a sample reporting heads 
 # when they observe tails
 
+library(hdrcde)
 
 #' Calculate the probability of observing `heads`
 #' good outcomes out of `N` total outcomes, conditional
@@ -145,6 +146,48 @@ dist_quantile <- function(dist, probs) {
   })
   
   return(qs)
+}
+
+
+#' Compute highest density region for a given confidence level
+#'
+#' This is a wrapper for `hdrcde::hdr`. The highest density region is the
+#' interval that covers `conf_level` of the data and has the highest
+#' average density. See:
+#' 
+#' Rob J Hyndman (1996) “Computing and graphing highest density regions”. American Statistician, 
+#' 50, 120-126.
+#' 
+#' 
+#' @param dist A one-argument function
+#' @param conf_level A scalar between 0 and 1
+#' @param hdr_workaround Another confidence level to workaround a bug in hdrcde::hdr. You
+#'   shouldn't need to set this unless you have an unusual distribution and `dist_hdr` gives
+#'    a warning; if so, try setting it to a smaller or larger value.
+#'
+#' @return A length 2 vector of 
+#'
+#' @examples
+dist_hdr <- function (dist, conf_level, hdr_workaround = 0.01) {
+  stopifnot(is_prob(conf_level), is.function(dist)) 
+  
+  density_est <- list(x = 0:1000/1000, y = dist(0:1000/1000))
+  
+  # we include prob 0.1 to make sure that result has two columns
+  result <- hdrcde::hdr(den = density_est, prob = c(100 * conf_level, 100 * hdr_workaround))
+  result <- result$hdr[1, ]
+  if (length(result) != 2) {
+    warning("hdrcde::hdr returned only one endpoint. Guessing which it is.")
+    if (isTRUE(all.equal(dist(0), 0))) result <- c(result, 1) else
+          if (isTRUE(all.equal(dist(1), 0))) result <- c(0, result) else
+          if (all(diff(density_est$y) >= 0)) result <- c(result, 1) else
+          if (all(diff(density_est$y) <= 0)) result <- c(0, result)
+    if (length(result) == 1) stop(
+            "Couldn't figure out which endpoint hdrcde::hdr returned. Try adjusting `hdr_workaround`")
+  }
+  result[is.na(result)] <- c(0, 1)[is.na(result)] 
+  
+  result
 }
 
 is_prob <- function (p) all(p >= 0 & p <= 1)
