@@ -121,6 +121,13 @@ dist_mean <- function (dist, l = 0, r = 1) {
   return(EV)
 }
 
+#' Find probability of a probability distribution function within given bounds 
+#'
+#' @inherit dist_mean params
+#'
+#' @return
+#'
+#' @examples
 dist_prob_within <- function (dist, l, r) {
   stopifnot(l <= r, is.function(dist))
   try_integral(dist, l, r)
@@ -131,17 +138,18 @@ dist_prob_within <- function (dist, l, r) {
 #'
 #' @param dist A one argument function
 #' @param probs A vector of probabilities
+#' @param bounds A length 2 vector of the bounds of the distribution's support
 #'
 #' @return A vector of quantiles
 #'
 #' @examples
-dist_quantile <- function(dist, probs) {
+dist_quantile <- function(dist, probs, bounds = c(0, 1)) {
   stopifnot(is_prob(probs), is.function(dist))
   
   qs <- sapply(probs, function (prob) {
-    f <- function (x) (dist_prob_within(dist, 0, x) - prob)^2
+    f <- function (x) (dist_prob_within(dist, bounds[1], x) - prob)^2
     # want x s.t. interval_prob(dist, 0, x) == prob
-    res <- optimize(f, c(0, 1))
+    res <- optimize(f, bounds)
     res$minimum
   })
   
@@ -161,14 +169,19 @@ dist_quantile <- function(dist, probs) {
 #' 
 #' @param dist A one-argument function
 #' @param conf_level A scalar between 0 and 1
+#' @param bounds A length 2 vector of the bounds of the distribution's support
 #'
 #' @return A length 2 vector of region endpoints
 #'
 #' @examples
-dist_hdr <- function (dist, conf_level) {
+dist_hdr <- function (dist, conf_level, bounds = c(0, 1)) {
   stopifnot(is_prob(conf_level), is.function(dist)) 
   
-  density_est <- list(x = -1:101/100, y = c(0, dist(0:100/100), 0))
+  eval_at <- seq(bounds[1], bounds[2], 0.01)
+  eval_at_y <- dist(eval_at)
+  eval_at <- c(bounds[1] - 0.01, eval_at, bounds[2] + 0.01)
+  eval_at_y <- c(0, eval_at_y, 0)
+  density_est <- list(x = eval_at, y = eval_at_y)
   
   # we include prob 0.1 to make sure that result has two columns
   result <- hdrcde::hdr(den = density_est, prob = 100 * conf_level)
@@ -180,31 +193,14 @@ dist_hdr <- function (dist, conf_level) {
           if (all(diff(density_est$y) >= 0)) result <- c(result, 1) else
           if (all(diff(density_est$y) <= 0)) result <- c(0, result)
     if (length(result) == 1) stop(
-            "Couldn't figure out which endpoint hdrcde::hdr returned. Try adjusting `hdr_workaround`")
+            "Couldn't figure out which endpoint hdrcde::hdr returned.")
   }
-  result[is.na(result)] <- c(0, 1)[is.na(result)] 
+  result[result < bounds[1] ] <- bounds[1] # can happen 
+  result[result > bounds[2]]  <- bounds[2]
   
   result
 }
 
-is_prob <- function (p) all(p >= 0 & p <= 1)
-
-
-if (FALSE) {
-  N <- 100
-  P <- 0.5
-  prior <- dunif
-  CI <- 0.95
-  cov_check <- replicate(1000, {
-    lambda <- runif(1)
-    heads <- rbinom(1, N, p = lambda * P + 1 - P)
-    posterior <- update_prior(heads, N, P, prior)
-    cis <- dist_quantiles(posterior, c(1/2 - CI/2, 1/2 + CI/2))
-    
-    cis[1] <= lambda && lambda <= cis[2]
-  })
-  table(cov_check)
-}
 
 
 #' Calculate power to detect non-zero lying
@@ -227,3 +223,23 @@ power_calc <- function (N, P, lambda, alpha = 0.05, prior = dunif, nsims = 200) 
   
   mean(res)
 }
+
+is_prob <- function (p) all(p >= 0 & p <= 1)
+
+
+if (FALSE) {
+  N <- 100
+  P <- 0.5
+  prior <- dunif
+  CI <- 0.95
+  cov_check <- replicate(1000, {
+    lambda <- runif(1)
+    heads <- rbinom(1, N, p = lambda * P + 1 - P)
+    posterior <- update_prior(heads, N, P, prior)
+    cis <- dist_quantiles(posterior, c(1/2 - CI/2, 1/2 + CI/2))
+    
+    cis[1] <= lambda && lambda <= cis[2]
+  })
+  table(cov_check)
+}
+

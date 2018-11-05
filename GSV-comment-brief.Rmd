@@ -41,7 +41,7 @@ mathfont: Times New Roman
 nreps <- 1000L
 
 # set to FALSE to recalculate all confidence interval estimates; TRUE for speed:
-cache_results <- FALSE
+cache_results <- TRUE
 
 # set to TRUE to (re)create the simulations CSV file, then stop:
 rerun_java <- FALSE
@@ -476,15 +476,15 @@ But it is 100% of just one person.
 
 The first of these two problems means that the GSV distribution of *Lies* is wrong. In the appendix
 I show that their estimator can have substantial bias. In fact, it performs worse than the naïve
-estimator from equation (\ref{eqn:naive-estimator}), $\frac{R-(1-P)}{P}$. Also, the GSV confidence
-intervals do not always achieve nominal coverage of *Lies*. When the number of heads reported is
-either high or low, the percentage of confidence intervals containing *Lies* may fall below the
-nominal value.
+estimator from equation (\ref{eqn:naive-estimator}), $\frac{R-(1-P)}{P}$. Since the true value of
+*Lies* is an unbiased estimator of $\lambda$, the GSV estimator is also a biased estimator of
+$\lambda$, as we will see. Also, the GSV confidence intervals do not always achieve nominal coverage
+of *Lies*. When the number of heads reported is either high or low, the percentage of confidence
+intervals containing *Lies* may fall below the nominal value.
 
 The second problem means that the GSV confidence intervals are not correct for $\lambda$. We can
 tell that the second problem matters, because the confidence interval coverage of $\lambda$ is much
-worse than coverage of *Lies*. The GSV estimator is also a biased estimator of $\lambda$, as we will
-see.
+worse than coverage of *Lies*. 
 
 ```{r disagg-coverage}
 
@@ -527,7 +527,7 @@ coverage_rn <- sim_est %>%
     
 
 as_huxtable(coverage_rn, add_colnames = TRUE) %>% 
-      set_caption("GSV confidence interval coverage by proportion of heads reported") %>% 
+      set_caption("GSV confidence interval coverage by proportion of heads reported ($R/N$)") %>% 
       set_label("tab:coverage-rn") %>% 
       set_escape_contents(2:3, 1, FALSE) %>% 
       set_number_format(-1, -1, list(pct_format)) %>% 
@@ -643,6 +643,7 @@ liars in a lying task with a die roll ($P = 5/6$). From 57 reports of the best o
 subjects, they calculate a lying rate of 49.68%, with a 95% CI of (45.3%, 53.95%). Using the
 Bayesian method with a uniform prior, the confidence interval becomes (`r bennd_bounds[1]`, 
 `r bennd_bounds[2]`), about twice as big. Obviously, this matters for e.g. sample size calculations.
+
 
 # Point estimation
 
@@ -845,6 +846,147 @@ diff_GB_RU <- difference_dist(distribs$GB, distribs$RU)
 curve(diff_GB_RU, xlim = c(-1, 1), ylab = "Density", xlab = expression(lambda[GB] - lambda[RU]))
 ```
 
+
+
+```{r banerjee-recalc, cache = cache_results}
+
+paste_combn <- function (x, y, flip = FALSE) {
+ res <- outer(x, y, FUN = paste0)
+ if (! flip) res <- t(res)
+ c(res)
+}
+
+sigstar <- function (x) {
+  symnum(x, corr = FALSE, 
+          cutpoints = c(0, .001, .01, .05, 1),
+          symbols = c("***", "**", "*", "")
+        )
+}
+
+
+treats <- paste_combn(c("T1", "T2", "T2-winners", "T2-losers"), c("-GC-", "-SC-"))
+treats <- paste_combn(treats, c("Same", "Other"))
+treats <- c("T0-GC-Same", "T0-SC-Same", treats)
+treats <- paste_combn(treats, c("-Aligned", "-Unaligned"), flip = TRUE)
+
+banerjee <- data.frame(
+  Treatment = treats,
+  N       = c(84, 84, rep(c(43, 41, 41, 43, 12,  17, 33, 22), each = 2),
+              90, 78, rep(c(42, 42, 40, 44, 12, 15, 32, 28), each = 2)),
+  pct_gt3 = c(77.38, 77.38, 83.72, 65.12, 80.49, 73.17, 75.61, 53.66, 88.37, 81.40, 58.33, 50.00, 
+              70.59, 52.94, 87.88, 45.45, 68.18, 72.73,
+              68.89, 66.67, 57.14, 73.81, 57.14, 66.67, 60.0, 77.5, 56.82, 59.09, 33.33, 41.67,
+              40.00, 73.33, 53.12, 93.75, 60.71, 75.00
+            )
+)
+
+banerjee %<>% mutate(
+        N_gt3 = round(pct_gt3/100*N, 0)
+      ) %>% 
+      extract(Treatment, c("Treatment", "Target", "Payoffs"), regex = "(.*)-([:alnum:]+)-([:alnum:]+)")
+
+
+banerjee_gsv_cis <- apply(banerjee %>% select(N_gt3, N), 1, function(x) {
+  prop_liars_ci_gsv(0.95, x["N_gt3"], x["N"], 0.5)
+})
+
+rownames(banerjee_gsv_cis) <- c("gsv_lo", "gsv_hi")
+banerjee %<>% cbind(t(round(banerjee_gsv_cis, 2) * 100))
+
+
+pp <- MASS::fitdistr(banerjee$N_gt3/banerjee$N, "beta", start = list(
+        shape1 = 1, shape2 = 1
+      ))
+pooled_prior <- function (x) dbeta(x, pp$estimate["shape1"], pp$estimate["shape2"])
+
+  
+banerjee_bayes_cis  <- apply(banerjee %>% select(N_gt3, N), 1, function(x) {
+  pstr <- update_prior(x["N_gt3"], x["N"], 0.5, prior = dunif)
+  dist_hdr(pstr, 0.95)
+})
+
+rownames(banerjee_bayes_cis) <- c("bayes_lo", "bayes_hi")
+banerjee %<>% cbind(t(round(banerjee_bayes_cis, 2) * 100))
+
+
+bj_wide <- banerjee %>% 
+      reshape2::melt(id.vars = c("Treatment", "Target", "Payoffs")) %>% 
+      reshape2::dcast(Treatment + Payoffs ~ ...)
+
+same_other_p <- apply(bj_wide %>% select(matches("(Other|Same)_N")), 1, function (x) {
+  if (is.na(x["Other_N_gt3"])) return(rep(NA, 2))
+  pstr_other <- update_prior(x["Other_N_gt3"], x["Other_N"], 0.5, prior = dunif)
+  pstr_same <- update_prior(x["Same_N_gt3"], x["Same_N"], 0.5, prior = dunif)
+  diff_dist <- difference_dist(pstr_other, pstr_same)
+  dist_hdr(diff_dist, 0.95, bounds = c(-1, 1))
+})
+
+rownames(same_other_p) <- c("diff_lo", "diff_hi")
+same_other_p <- t(same_other_p)
+bj_wide %<>% cbind(same_other_p)
+bj_wide %<>% select(Treatment, Payoffs, diff_lo, diff_hi)
+
+
+banerjee %<>% left_join(bj_wide, by = c("Treatment", "Payoffs"))
+banerjee %<>% mutate(
+        GSV_CIs      = sprintf("%s -- %s", gsv_lo, gsv_hi),
+        Bayesian_CIs = sprintf("%s -- %s", bayes_lo, bayes_hi),
+        diff_ci      = ifelse(is.na(diff_lo), "", 
+                               sprintf("%.0f -- %.0f", diff_lo * 100, diff_hi * 100)),
+        diff_ci      = ifelse(diff_lo > 0 | diff_hi < 0, paste(diff_ci, "*"), diff_ci )
+      )
+```
+
+```{r banerjee-recalc-table}
+
+group_cols <- c("Treatment", "Payoffs", "Diff. 95% CI", "N")
+banerjee %>% 
+      select(
+        Treatment,
+        Payoffs,
+        Target,
+        "Pct > 3"        = pct_gt3, 
+        N, 
+        "GSV 95% CI"   = `GSV_CIs`, 
+        "Bayes 95% CI" = `Bayesian_CIs`,
+        "Diff. 95% CI" = `diff_ci`
+      ) %>%
+      as_huxtable(add_colnames = TRUE) %>% 
+      set_rowspan(evens, group_cols, 2) %>% 
+      set_rowspan(grepl("T0", banerjee$Treatment), group_cols, 1) %>% 
+      set_all_border_colors("grey70") %>% 
+      theme_plain() %>% 
+      set_top_border(evens, everywhere, 0.4) %>%
+      set_bottom_border(evens, group_cols, 0.4) %>%
+      set_bottom_border(grepl("T0", banerjee$Treatment), group_cols, 0) %>%
+      set_valign(everywhere, group_cols, "middle") %>% 
+      set_background_color(NA) %>% 
+      set_top_padding(8) %>% 
+      set_bottom_padding(4) %>% 
+      set_font_size(10) %>% 
+      set_caption("Confidence intervals from Banerjee et al. 2018, original and recalculated") %>% 
+      set_label("tab:banerjee-recalc")
+
+```
+
+@banerjee2018spillover use the GSV method to estimate confidence intervals for proportion of liars
+in a die roll task. They estimate the proportion of liars who report a die roll above 3 
+($P = 0.5$), for several treatments. Table \ref{tab:banerjee-recalc} shows GSV confidence intervals,
+along with recalculated Bayesian confidence intervals, and confidence intervals for the difference
+between lying to the "Same" and "Other" caste. I use a uniform prior rather than a pooled prior
+here. This may be more reasonable when we are testing for differences in experimental treatments,
+as we do not start from a strong belief that the treatments have no effect.
+
+The Bayesian confidence intervals are much larger
+than GSV confidence intervals. Only a couple of significant results survive. (Note that
+significance tests in the original paper were done with standard frequentist techniques, not the
+GSV method.) More importantly, it is clear that the N is rather low to make useful inferences
+about the differences between groups. For example, for the T2-winners-GC group in the "aligned
+payoffs" treatment, differences in lying could be as much as 30% in either direction. Notice
+also that sometimes confidence intervals for the number of liars start above 0, even though less
+than half reported the high outcome. This is because, starting from a pooled prior, the evidence
+from the low N is not enough to shift the prior much. Low die rolls are more likely than a population
+of truth tellers.
 
 # Conclusion
 
