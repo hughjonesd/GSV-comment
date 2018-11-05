@@ -41,7 +41,7 @@ mathfont: Times New Roman
 nreps <- 1000L
 
 # set to FALSE to recalculate all confidence interval estimates; TRUE for speed:
-cache_results <- TRUE
+cache_results <- FALSE
 
 # set to TRUE to (re)create the simulations CSV file, then stop:
 rerun_java <- FALSE
@@ -705,7 +705,7 @@ power_l_25 <- power_calc(N = 100, P = 0.5, lambda = 0.25)
 power_l_10 <- power_calc(N = 100, P = 0.5, lambda = 0.10)
 ```
 
-GSV argue that existing sample sizes may be too small to reject "no lying" ($\lambda = 0). 
+GSV argue that existing sample sizes may be too small to reject "no lying" ($\lambda = 0$). 
 We can check this with the Bayesian method by simulations. With a uniform prior and an $N$ of 100, 
 the Bayesian method has `r pct_format(power_l_25)` power to detect $\lambda$ of 25% and 
 `r pct_format(power_l_10)` power to detect $\lambda$ of 10%. So, on this we agree. 
@@ -739,9 +739,9 @@ nats <- dfr %>%
       )
 
 
-pp <- MASS::fitdistr(nats$prop_liars, "beta", start = list(
+pp <- suppressWarnings(MASS::fitdistr(nats$prop_liars, "beta", start = list(
         shape1 = 1, shape2 = 1
-      ))
+      )))
 pooled_prior <- function (x) dbeta(x, pp$estimate["shape1"], pp$estimate["shape2"])
 
 distribs <- apply(nats[, c("heads", "N")], 1, function (r) {
@@ -894,12 +894,13 @@ rownames(banerjee_gsv_cis) <- c("gsv_lo", "gsv_hi")
 banerjee %<>% cbind(t(round(banerjee_gsv_cis, 2) * 100))
 
 
-pp <- MASS::fitdistr(banerjee$N_gt3/banerjee$N, "beta", start = list(
-        shape1 = 1, shape2 = 1
-      ))
-pooled_prior <- function (x) dbeta(x, pp$estimate["shape1"], pp$estimate["shape2"])
+# didn't converge to give finite density at 0!
+# pp <- suppressWarnings(MASS::fitdistr(pmax(0.03, 2 * banerjee$N_gt3/banerjee$N - 1), "beta", start = list(
+#         shape1 = 1, shape2 = 1
+#       )))
+# pooled_prior <- function (x) dbeta(x, pp$estimate["shape1"], pp$estimate["shape2"])
 
-  
+
 banerjee_bayes_cis  <- apply(banerjee %>% select(N_gt3, N), 1, function(x) {
   pstr <- update_prior(x["N_gt3"], x["N"], 0.5, prior = dunif)
   dist_hdr(pstr, 0.95)
@@ -973,36 +974,27 @@ banerjee %>%
 in a die roll task. They estimate the proportion of liars who report a die roll above 3 
 ($P = 0.5$), for several treatments. Table \ref{tab:banerjee-recalc} shows GSV confidence intervals,
 along with recalculated Bayesian confidence intervals, and confidence intervals for the difference
-between lying to the "Same" and "Other" caste. I use a uniform prior rather than a pooled prior
-here. This may be more reasonable when we are testing for differences in experimental treatments,
-as we do not start from a strong belief that the treatments have no effect.
+between lying to the "Same" and "Other" caste. Here, I used a non-informative prior rather than
+a pooled prior, letting the algorithm maintain an "open mind" about treatment effects.
 
 The Bayesian confidence intervals are much larger
 than GSV confidence intervals. Only a couple of significant results survive. (Note that
 significance tests in the original paper were done with standard frequentist techniques, not the
 GSV method.) More importantly, it is clear that the N is rather low to make useful inferences
 about the differences between groups. For example, for the T2-winners-GC group in the "aligned
-payoffs" treatment, differences in lying could be as much as 30% in either direction. Notice
-also that sometimes confidence intervals for the number of liars start above 0, even though less
-than half reported the high outcome. This is because, starting from a pooled prior, the evidence
-from the low N is not enough to shift the prior much. Low die rolls are more likely than a population
-of truth tellers.
+payoffs" treatment, differences in lying could be as much as 40% in either direction. 
 
 # Conclusion
 
 These results suggest some recommendations when you are analysing a coin-flip
 style experiment.
 
-1. Do not use the GSV confidence intervals, unless you are specifically interested in *Lies* rather
-  than $\lambda$. Even in that case, be aware that the confidence intervals have low coverage for 
-  extreme values of *R*.
+1. Do not use the GSV method. Confidence intervals are always too narrow, risking false inferences.
   
-2. Do not use the GSV estimates. They are biased as estimators of both *Lies* and $\lambda$.
-  
-3. If your N is reasonably large, say at least 100, you can safely use standard frequentist 
+2. If your N is reasonably large, say at least 100, you can safely use standard frequentist 
   confidence intervals and tests.
   
-4. If your N is small, consider Bayesian estimates and confidence intervals. To estimate differences 
+3. If your N is small, consider Bayesian estimates and confidence intervals. To estimate differences 
   between subgroups, consider empirical Bayes with a prior derived from the pooled sample.
 
 Lastly, here is a simple experimental design to avoid these statistical shenanigans. Ask a group of *N*
@@ -1287,8 +1279,9 @@ g +
 Figure \ref{fig:gsv-lies-coverage-pic} shows the proportion of confidence intervals that contain the true
 value of *Lies*. Coverage is shown by confidence level, *N*, *P* and the decile (within these groups) of
 proportion of heads reported (*R/N*). Overall results are quite solid, but when the proportion of
-heads reported is low or high, coverage drops below the nominal intervals. Interestingly, this problem
-gets worse as $N$ increases.
+heads reported is low or high, coverage drops below the nominal intervals. This is probably because,
+at these extremes, the difference between the true posterior and equation \ref{eqn:truncated-binom} 
+becomes large. Interestingly, this problem gets worse as $N$ increases.
 
  
 
