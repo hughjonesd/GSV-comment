@@ -92,9 +92,6 @@ set.seed(19751027)
 ```
 
 
-TODO XXX: point out the claims they make. 
-
-
 Some people are honest, while others are likely to lie whenever it benefits them. We would like to understand
 the prevalence of lying, because dishonesty may be economically and socially harmful. Since we
 cannot simply ask people if they are liars, one way to estimate the proportion of liars in a group
@@ -866,12 +863,13 @@ style experiment.
 4. If your N is small, consider Bayesian estimates and confidence intervals. To estimate differences 
   between subgroups, consider empirical Bayes with a prior derived from the pooled sample.
 
-Lastly, I suggest a simple way to avoid these statistical shenanigans. Ask a group of *N*
+Lastly, here is a simple experimental design to avoid these statistical shenanigans. Ask a group of *N*
 experimental subjects, not to flip a coin, but to draw a black or white ball, without replacement,
 from an urn containing *N* balls, of which *T* are white. Pay them if they report a white ball. You
 will then know -- not estimate -- that the proportion of lies told is $(R - T)/(N - T)$, and this
-will also be the proportion of liars, in a sample of exactly $N - T$ subjects. So you can
-simultaneously estimate the proportion of lies, and of the lying liars who tell them.
+will also be the proportion of liars, in a sample of exactly $N - T$ subjects. You can compare
+different samples, or test for no lying, using a straightforward chi-squared test.
+So, you can simultaneously estimate the proportion of lies, and of the lying liars who tell them.
 
 \FloatBarrier
 \newpage
@@ -894,10 +892,10 @@ when $R = 3, N = 6, P = 0.5$, GSV's Java program gives the upper bound of the 95
 interval for the proportion of liars as 49.91%. But the possible proportions of lies when there
 are $T = 0, 1, 2, 3$ true heads, are $(R-T)/(N-T) =$
 `r paste0(prop_liars(3:0, 3, 6) * 100, "%", collapse = ", ")`.
-It may be that some linear interpolation is being done. 
+It may be that some linear interpolation is being done.
 
 Nevertheless, if I use GSV's method as stated, rather than their program, confidence intervals
-remain too small, as shown in Table \ref{tab:coverage-recalc}.
+remain too small, as shown in Table \ref{tab:coverage-recalc}. 
 
 ```{r coverage-recalc}
 
