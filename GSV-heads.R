@@ -49,12 +49,15 @@ prop_liars_ci_gsv <- function (ci, heads, N, P) {
   pl  <- c(0, pl)
   
   tail <- (1 - ci)/2
-  # lower bound: no more than tail% of probability has less than this
-  lb_idx <- max(which(cdf <= tail)) # must exist since cdf starts at 0.
+  # lower bound: no more than tail% of probability has less than this.
+  # this ought to be max(which(tail <= cdf)) but the paper says this instead - which
+  # will lead to excessively narrow confidence intervals when N is low
+  lb_idx <- min(which(cdf > tail)) # must exist since cdf starts at 0.
   lb <- pl[lb_idx]
   
-  # upper bound: no more than 1-tail% of probability has more
-  ub_idx <- min(which(cdf >= 1 - tail))
+  # upper bound: no more than 1-tail% of probability has more. This is what the paper says
+  # but it is far from what they do:
+  ub_idx <- max(which(cdf < 1 - tail))
   ub <- pl[ub_idx]
   
   return(c(lb, ub))

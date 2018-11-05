@@ -1,5 +1,8 @@
 
-This is source code and data for a comment on Garbarino, Slonim and Villeval (JESA 2018).
+This is source code and data for a comment on
+Garbarino, Ellen, Robert Slonim, and Marie Claire Villeval (2018):
+[https://doi.org/10.1007/s40881-018-0055-4](“A Method to Estimate Mean Lying Rates and Their Full
+Distribution.”) Journal of the Economic Science Association. 
 
 To reproduce the paper, clone the repository from your command line:
 
@@ -8,14 +11,22 @@ git clone https://github.com/hughjonesd/GSV-comment.git
 ```
 
 You'll also need GSV's original [lying calculator](http://lyingcalculator.gate.cnrs.fr/), and
-various R libraries, especially the `checkpoint` library to reproduce the state of CRAN in 
-November 2018.
+the `checkpoint` R package.
 
 When you're ready, fire up your favourite R IDE and:
 
-1. Set `rerun_java <- TRUE` at the top of `GSV-comment-brief.Rmd`, and knit the document. 
-2. R will stop and ask you to run the lying calculator on the file `"GSV-sims.csv"`. Do so. 
-3. Set `rerun_java <- FALSE` and knit the document again.  
+1. On the command line, run:
+
+```r
+library(checkpoint)
+checkpoint("2018-11-03")
+```
+
+This will install the versions of the packages used to create the comment.
+
+2. Set `rerun_java <- TRUE` at the top of `GSV-comment-brief.Rmd`, and knit the document. 
+3. R will stop and ask you to run the GSV lying calculator on the file `"GSV-sims.csv"`. Do so. 
+4. Set `rerun_java <- FALSE` and knit the document again.  
 
 ## Other files
 

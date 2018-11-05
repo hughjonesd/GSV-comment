@@ -1,5 +1,5 @@
 ---
-title: "True Lies:"
+title: "True Lies"
 subtitle: "Comment on Garbarino, Slonim and Villeval (2018)"
 author: "David Hugh-Jones"
 date: "`r Sys.Date()`"
@@ -36,8 +36,27 @@ mathfont: Times New Roman
 
 ```{r setup, include = FALSE}
 
+
+# how many simulations to run:
+nreps <- 1000L
+
+# set to FALSE to recalculate all confidence interval estimates; TRUE for speed:
+cache_results <- FALSE
+
+# set to TRUE to (re)create the simulations CSV file, then stop:
+rerun_java <- FALSE
+
+params <-   list(
+  N      = c(10, 50, 100, 500),
+  lambda = seq(0, 1, 0.1),
+  P      = c(.2, .5, .8)
+)
+ 
+ci_levels <- c(90L, 95L, 99L)
+
+
 library(checkpoint)
-checkpoint("2018-11-03")
+checkpoint("2018-11-03", scanForPackages = cache_results)
 
 library(tufte)
 # invalidate cache when the tufte version changes
@@ -69,23 +88,6 @@ huxtable::set_default_properties(position = "left", top_padding = 12, bottom_pad
 ggplot2::theme_set(theme_light())
 
 set.seed(19751027)
-
-# how many simulations to run:
-nreps <- 1000L
-
-# set to FALSE to recalculate all confidence interval estimates; TRUE for speed:
-cache_results <- FALSE
-
-# set to TRUE to (re)create the simulations CSV file, then stop:
-rerun_java <- FALSE
-
-params <-   list(
-  N      = c(10, 50, 100, 500),
-  lambda = seq(0, 1, 0.1),
-  P      = c(.2, .5, .8)
-)
- 
-ci_levels <- c(90L, 95L, 99L)
 
 ```
 
@@ -267,8 +269,6 @@ simple_est <- cbind(simple_est, t(heads_confints))
 sim_est <- left_join(sim_est, simple_est, by = c("N", "P", "R", "CI"))
 ```
 
-
-
 ```{r recalc-estimates, cache = cache_results}
 
 sim_tmp <- sim_input[, c("R", "N", "P", "CI")]
@@ -283,6 +283,12 @@ recalc <- apply(sim_tmp, 1, function (x) {
 sim_tmp <- cbind(sim_tmp, t(recalc))
 sim_est <- left_join(sim_est, sim_tmp, by = c("N", "P", "R", "CI"))
 
+# check we aren't too far from their calculations. 
+with(sim_est, stopifnot(
+        max(abs(EV.recalc - EV.gsv)) < 0.0001,
+        mean(abs(LB.recalc - LB.gsv)) < 0.05,
+        mean(abs(UB.recalc - UB.gsv)) < 0.05
+      ))
 ```
 
 ```{r reshape-results, cache = cache_results}
@@ -379,13 +385,13 @@ called "achieving nominal coverage". GSV intervals are far from this. The confid
 too narrow. This problem holds across all simulated probabilities of the low outcome, confidence
 levels, and sample sizes.^[See the appendix.]
 
-Why does this happen? We can get a clue by running the GSV method when there are 10 reports of 
+Why does this happen? We can get a clue by running the GSV method when there are 10 reports of
 "heads" out of 10 for a fair coin flip (*R = N = 10, P = 0.5*). The resulting point estimate is that
-100% of subjects lied. The upper and lower 99% confidence intervals are also 100%. Naïvely, this might
-seem wrong. Can we rule out that 8 subjects lied, and the two honest subjects both saw heads?
+100% of subjects lied. The upper and lower 99% confidence intervals are also 100%. Naïvely, this
+might seem wrong. Can we rule out that 8 subjects lied, and the two honest subjects both saw heads?
 
-In fact, the GSV method works like this. First, given *R* reports of heads, the probability that a total 
-of *T* "true" heads were observed is calculated as:
+In fact, the GSV method works like this. First, given *R* reports of heads, the probability that a
+total of *T* "true" heads were observed is calculated as:
 
 
 \begin{equation}
@@ -426,7 +432,7 @@ Hence, the lower and upper confidence intervals are all 100%.
 
 There are two problems with this approach. One is statistical, one is conceptual.
 
-```{r}
+```{r heads-10-10-calcs}
 
 heads_10 <- sim_est %>% 
       filter(N == 10, R == 10, P == 0.5) %>% 
@@ -444,7 +450,7 @@ probably many liars in your sample. On the other hand, probably a lot of coins r
 The probability distribution in equation (\ref{eqn:truncated-binom}) does not take account of this.
 In particular, for *R = N*, it reduces to the binomial distribution. This is not correct. For
 example, in my simulations with $P = 0.5$, the overall probability that there were 10 heads when $R
-= N = 10$ was about 1 in `r inv_prob_h`, not 1 in 1024. When $\lambda = 0.2$, it is about 1 in 
+= N = 10$ was about 1 in `r inv_prob_h`, not 1 in 1024. When $\lambda = 0.2$, it was about 1 in 
 `r inv_prob_h_l20`. The same is true at the other end of the scale: when *R* is low, we indeed learn
 that $T \le R$ but also that the overall distribution is not shaped like the prior.
 
@@ -454,18 +460,20 @@ in the proportion of lies actually told. We care about the probability that peop
 sample would lie if they saw tails --  $\lambda$ in equation (\ref{eqn:lambda}). This $\lambda$ can
 be interpreted in different ways. It could be that on seeing a tail, each person in the sample lies
 with probability $\lambda$. Or it could be that the sample is drawn from a population of whom
-$\lambda$ are (always) liars, and $1 - \lambda$ are truth-tellers.
+$\lambda$ are (always) liars, and $1 - \lambda$ are truth-tellers. *Lies*, on the other hand,
+has no interpretation in the population, because the rest of the population has no chance to tell a lie
+in the experiment. Indeed, when GSV run Monte Carlo simulations, they themselves check their
+confidence intervals against $\lambda$ (which they call $Q$).
 
 The fact that some people saw heads, and had no reason to lie, is just a nuisance for estimation.
 Similarly, we are not interested, per se, in whether more lies were actually told in one group than
 another. Suppose that 9 out of 10 people saw heads. Only one person had a reason to lie, so by
 definition, *Lies* will be either 0 or 1. This will almost certainly be different from the value of
 *Lies* in another group where there were fewer heads. But that tells us very little, either about the 
-samples as a whole, or about the population they come from.
+samples as a whole, or about the population they come from. 
 
-*Lies* can be treated as an estimate of $\lambda$. It is unbiased, because the
-probability that people would lie if they saw tails is independent of the coin flip they actually
-see. But it can be a very noisy estimate. 
+*Lies* can be treated as an estimate of $\lambda$. It is unbiased: it is an estimate of 
+$\lambda$ in the random sample of $N - T$ people who saw tails. But it can be a very noisy estimate. 
 Again, suppose 10 heads out of 10 are reported, and 9 heads were really observed. *Lies* is 100%. 
 But it is 100% of just one person.
 
@@ -478,7 +486,8 @@ nominal value.
 
 The second problem means that the GSV confidence intervals are not correct for $\lambda$. We can
 tell that the second problem matters, because the confidence interval coverage of $\lambda$ is much
-worse than coverage of *Lies*. The GSV estimator is also a biased estimator of $\lambda$.
+worse than coverage of *Lies*. The GSV estimator is also a biased estimator of $\lambda$, as we will
+see.
 
 ```{r disagg-coverage}
 
@@ -501,7 +510,7 @@ prop_ok <- disagg %>%
 The problem is especially bad when there are many reports of heads. In this case there were probably
 many true heads, so *T* is high and the true sample size $N - T$ is low. Table \ref{tab:coverage-rn}
 shows this. It splits the simulations by the proportion of reported heads, *R/N*. Coverage levels
-fall off sharply as *R/N* increases. Note that for fair coin flips, *R/N* is typically greater than
+fall off sharply as *R/N* increases. For fair coin flips, *R/N* is typically greater than
 0.5, in the simulations and in reality.
 
 ```{r coverage-rn}
@@ -567,10 +576,11 @@ the probability of liars, $\phi(\lambda)$. The posterior probability is then:
 \end{equation}
 
 
-From this, one can derive confidence intervals and expected values in the usual way.^[R code
-to do this is available at https://github.com/hughjonesd/GSV-comment. ] Technically,
-they are Bayesian "credible" intervals. I use Highest Posterior Density intervals [@hyndman1996computing], rather than the central confidence interval. This allows the intervals
-to include endpoints of the distribution, which is important when e.g. testing for $\lambda = 0$.
+From this, one can derive confidence intervals and expected values in the usual way.^[R code to do
+this is available at https://github.com/hughjonesd/GSV-comment. ] Technically, they are Bayesian
+"credible" intervals. I use Highest Posterior Density intervals [@hyndman1996computing], rather than
+the central confidence interval. This allows the intervals to include endpoints of the distribution,
+which is important when e.g. testing for $\lambda = 0$.
 
 The Bayesian method requires a prior. Here, I used a uniform prior, $\phi(\lambda) = 1$ on $[0, 1]$.
 
@@ -623,11 +633,28 @@ as_huxtable(coverage_N, add_colnames = TRUE) %>%
 ```
 
 
+```{r benndorf-recalc}
+bennd <- update_prior(57, 98, 5/6, dunif)
+bennd_bounds <- dist_hdr(bennd, 0.95)
+bennd_bounds <- pct_format(bennd_bounds)
+bennd_trad <- binom.test(57, 98)$conf.int
+bennd_trad <- pct_format(bennd_trad)
+```
+
+@benndorf2017experienced use the GSV method to calculate confidence intervals for the proportion of
+liars in a lying task with a die roll ($P = 5/6$). From 57 reports of the best outcome, out of 98
+subjects, they calculate a lying rate of 49.68%, with a 95% CI of (45.3%, 53.95%). Using the
+Bayesian method with a uniform prior, the confidence interval becomes (`r bennd_bounds[1]`, 
+`r bennd_bounds[2]`), about twice as big. Obviously, this matters for e.g. sample size calculations.
+
 # Point estimation
 
 
-We can also compare the accuracy of point estimates of *Liars*. Table
-\ref{tab:point-estimates} shows the mean squared error for methods by different *N*. For low *N*,
+We can also compare the accuracy of point estimates of *Liars*. Table \ref{tab:bias} shows bias
+(the estimated value minus the true value of $\lambda$) for different methods by different *N*.
+The Bayesian method is always the least biased until $N = 500$, and the GSV method is the most biased.
+
+Table \ref{tab:mse} shows the mean squared error for methods by different *N*. For low *N*,
 the best method is Bayesian and the worst is Frequentist, with GSV in between. When *N* gets large all
 methods give about the same estimates and are equally accurate. 
 
@@ -640,21 +667,50 @@ one is sure that the true *L/N* is rather high.
 
 ```{r point-estimates}
 
-sim_est %>% 
+bias_mse <- sim_est %>% 
       filter(CI == 90) %>% 
       mutate(
         Method = recode(method, gsv = "GSV", simple = "Frequentist", ubayes = "Bayesian"),
         method = NULL
       ) %>% 
       group_by(Method, N) %>% 
-      summarize(mean_sq_error = mean(error_sq, na.rm = TRUE)) %>% 
+      summarize(
+        mean_sq_error = mean(error_sq, na.rm = TRUE),
+        bias          = mean(error, na.rm = TRUE)
+      )
+
+bias_mse %>% 
+      select(-mean_sq_error) %>% 
+      spread(N, bias, sep = ": ") %>% 
+      ungroup() %>% 
+      as_huxtable(add_colnames = TRUE) %>% 
+      set_caption("Mean bias by method and $N$") %>% 
+      set_label("tab:bias") %>% 
+      theme_plain()
+
+bias_mse %>% 
+      select(-bias) %>% 
       spread(N, mean_sq_error, sep = ": ") %>% 
       ungroup() %>% 
       as_huxtable(add_colnames = TRUE) %>% 
       set_caption("Mean squared errors by method and $N$") %>% 
-      set_label("tab:point-estimates") %>% 
+      set_label("tab:mse") %>% 
       theme_plain()
+
+
 ```
+
+# Power tests
+
+```{r power-tests}
+power_l_25 <- power_calc(N = 100, P = 0.5, lambda = 0.25)
+power_l_10 <- power_calc(N = 100, P = 0.5, lambda = 0.10)
+```
+
+GSV argue that existing sample sizes may be too small to reject "no lying" ($\lambda = 0). 
+We can check this with the Bayesian method by simulations. With a uniform prior and an $N$ of 100, 
+the Bayesian method has `r pct_format(power_l_25)` power to detect $\lambda$ of 25% and 
+`r pct_format(power_l_10)` power to detect $\lambda$ of 10%. So, on this we agree. 
 
 
 # Empirical Bayes
@@ -791,6 +847,7 @@ cc_hux
 diff_GB_RU <- difference_dist(distribs$GB, distribs$RU)
 curve(diff_GB_RU, xlim = c(-1, 1), ylab = "Density", xlab = expression(lambda[GB] - lambda[RU]))
 ```
+
 
 # Conclusion
 

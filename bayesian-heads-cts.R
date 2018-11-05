@@ -161,20 +161,17 @@ dist_quantile <- function(dist, probs) {
 #' 
 #' @param dist A one-argument function
 #' @param conf_level A scalar between 0 and 1
-#' @param hdr_workaround Another confidence level to workaround a bug in hdrcde::hdr. You
-#'   shouldn't need to set this unless you have an unusual distribution and `dist_hdr` gives
-#'    a warning; if so, try setting it to a smaller or larger value.
 #'
-#' @return A length 2 vector of 
+#' @return A length 2 vector of region endpoints
 #'
 #' @examples
-dist_hdr <- function (dist, conf_level, hdr_workaround = 0.01) {
+dist_hdr <- function (dist, conf_level) {
   stopifnot(is_prob(conf_level), is.function(dist)) 
   
-  density_est <- list(x = 0:1000/1000, y = dist(0:1000/1000))
+  density_est <- list(x = -1:101/100, y = c(0, dist(0:100/100), 0))
   
   # we include prob 0.1 to make sure that result has two columns
-  result <- hdrcde::hdr(den = density_est, prob = c(100 * conf_level, 100 * hdr_workaround))
+  result <- hdrcde::hdr(den = density_est, prob = 100 * conf_level)
   result <- result$hdr[1, ]
   if (length(result) != 2) {
     warning("hdrcde::hdr returned only one endpoint. Guessing which it is.")
@@ -207,4 +204,26 @@ if (FALSE) {
     cis[1] <= lambda && lambda <= cis[2]
   })
   table(cov_check)
+}
+
+
+#' Calculate power to detect non-zero lying
+#'
+#' @inherit prob_report_given_lambda params
+#' @param alpha Significance level to use for the null hypothesis 
+#' @param nsims Number of simulations to run
+#'
+#' @return
+#' @export
+#'
+#' @examples
+power_calc <- function (N, P, lambda, alpha = 0.05, prior = dunif, nsims = 200) {
+  res <- replicate(nsims, {
+    R <- rbinom(1, N, (1-P) + P * lambda)
+    pstr <- update_prior(R, N, P, prior)
+    bounds <- dist_hdr(pstr, 1 - alpha)
+    bounds[1] > 0 
+  })
+  
+  mean(res)
 }
