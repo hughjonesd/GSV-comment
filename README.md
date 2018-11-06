@@ -1,8 +1,8 @@
 
 This is source code and data for a comment on
 Garbarino, Ellen, Robert Slonim, and Marie Claire Villeval (2018):
-[https://doi.org/10.1007/s40881-018-0055-4](“A Method to Estimate Mean Lying Rates and Their Full
-Distribution.”) Journal of the Economic Science Association. 
+[“A Method to Estimate Mean Lying Rates and Their Full
+Distribution.”](https://doi.org/10.1007/s40881-018-0055-4) Journal of the Economic Science Association. 
 
 To reproduce the paper, clone the repository from your command line:
 
@@ -24,9 +24,9 @@ checkpoint("2018-11-03")
 
 This will install the versions of the packages used to create the comment.
 
-2. Set `rerun_java <- TRUE` at the top of `GSV-comment-brief.Rmd`, and knit the document. 
-3. R will stop and ask you to run the GSV lying calculator on the file `"GSV-sims.csv"`. Do so. 
-4. Set `rerun_java <- FALSE` and knit the document again.  
+2. Set `rerun_java <- TRUE` at the top of `GSV-comment-brief.Rmd`, and knit the document.
+3. R will stop and ask you to run the GSV lying calculator on the file `"GSV-sims.csv"`. Do so.
+4. Set `rerun_java <- FALSE` and knit the document again.
 
 ## Other files
 
@@ -44,7 +44,7 @@ curve(updated)
 ```
 
 `GSV-heads.R` contains functions to estimate the distribution of *lies told* in a sample,
-using GSV's methods. 
+using GSV's methods.
 
 `bayesian-heads.R` contains some obsolete code.
 
