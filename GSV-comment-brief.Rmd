@@ -29,7 +29,7 @@ mathfont: Times New Roman
 ---
 
 
-> Garbarino, Slonim and Villeval (2018) describe a new method to calculate the probability
+> **Abstract**: Garbarino, Slonim and Villeval (2018) describe a new method to calculate the probability
 > distribution of the proportion of lies told in "coin flip" style experiments. I show that their
 > estimates and confidence intervals are flawed. I demonstrate two better ways to estimate the 
 > probability distribution of what we are really interested in: the proportion of liars.
