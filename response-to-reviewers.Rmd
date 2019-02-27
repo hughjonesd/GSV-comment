@@ -1,0 +1,75 @@
+---
+title: "Untitled"
+author: "David Hugh-Jones"
+date: "27/02/2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+> The most obvious comment that both reviewers made is one of etiquette: you are unnecessarily harsh
+> to GSV! I would like you to reframe the discussion of GSV following the suggestions of R2. (And yes,
+> the “don’t use the GSV method” in the conclusion should be replaced with something more informative
+> and less pedantic.)
+
+[TODO]
+
+> I also like R2’s suggestion about either providing power calculations (see the example table this
+> reviewer provided) and/or an online calculator that you will discuss in your paper. Finally, please
+> ensure that you address R1’s comments on clarity.
+
+[Already in software]
+
+* Reviewer 1
+
+> I think that the statistical argument could be explained more clearly... I would encourage the 
+> author to expand this part of the paper to explain things more clearly.
+
+[Use bits of R1's example]
+
+
+I also think that it would be important to explain more clearly how the statistical and conceptual arguments relate to the lack of nominal coverage of the estimator and its biasedness. This is not very clear at the moment - I am referring in particular to the last four paragraphs of page 4. In particular, I struggle to see how the two arguments can help explain the poor nominal coverage of the GSV method. In those paragraphs, it would also be useful to make a clearer distinction between the GSV method as an estimator of the proportion of lies actually told in the sample ("Lies") - and the problems that arise there; and the method as an estimate of the proportion of liars in the sample ("lambda"). At the moment the paper goes back and forth between the problems that arise in either case, which is confusing.
+
+
+This is also true in the following sections ("Alternative methods" and "Point estimates"). As far as I understand, the exercise here consists in comparing across methods the coverage and point estimates of lambda (this is confusingly referred to as "Liars" in this part of the paper). It would be useful to point this out more clearly.
+
+
+I also thought that the part on "empirical Bayes" is not very well explained. Indeed, I wondered whether the inclusion of this section may detract from the overall value of the paper, since it becomes slightly less focused. The same goes for table 9 and corresponding text in the paper - it seems that this goes somewhat beyond the scope of the paper - which in my opinion works best as a comment focused on the GSV method, rather than its applications in subsequent papers.
+
+
+Regarding the conclusions, I liked the prescriptive approach of the paper. However, I think that the first precept, "Do not use the GSV method", is perhaps too strong. I think that the simulations presented in the paper convinced me that GSV is not a good method to estimate the proportion of liars ("lambda"), espcially in comparison with the alternative methods - but I am less convinced that the method is a terrible estimator of the proportion of lies actually told in the sample ("Lies"). The simulations in the Appendix do not seem to show a very large bias or dramatic drops in coverage in this case. So, in my view, the first precept could perhaps be rephrased as "Do not use the GSV method if you are interested in estimating the proportion of liars in your sample".
+
+
+I also liked the thought experiment presented in the concluding section. However, one important point to make here is that, in such an experiment, each subject would face a different truthful distribution (and the experiment would not be able to control or observe which subject faced which distribution). We know from existing research that the underlying distribution matters for the willingness to lie. So this is a caveat to keep in mind when estimating the proportion of lies via this method.
+
+
+Finally, I have some additional minor comments:
+- p. 1, footnote 1: the acronym GSV is used before it has been explained
+- p. 4: line 33, equation 1 should contain R/N, not R.
+- p. 4, table 3: what does "Percentage of cases" mean?
+- Figure 3 in the Appendix, the horizontal axis is missing
+
+* Reviewer 2
+
+Power Calculations: I believe one area that would be extremely useful for future research would be to provide some power calculations based on your proposed method (either frequentist or Bayesian).
+
+[Give example in main paper]
+
+Online Calculator: Another way the paper could be extremely valuable for future researchers would be, like GSV, to provide an online lying calculator so that researchers can easily use your improved method. I worry otherwise that while readers might find your paper interesting, if it is not trivial to apply (which I suspect will be the case for many), then they might not use your method. I will leave it up to you, but either a stand- alone piece of software, or possibly even a STATA routine if that is possible (which I would think would be preferable). In any case, I believe this would be an enormous improvement to the value of your paper (and citations).
+
+[Maybe turn stuff into R package? Or just put some examples into the main paper.]
+
+Suggested experiment in the concluding section: While I like the objective of the suggested experiment, I do not think the design works as I think it changes the nature/implication of lying...
+in the second experiment, if a subject gets the white ball but lies and reports black, then there is only one outcome for the experiment: both subjects will report black, and it will be with certainty that the experimenter will know one of the subjects will have lied. This seems like it a potentially important difference that could affect the willingness of subjects to lie. Having more subjects in the room does not change the basic point that in your proposed setup that any subject that lies will make it clear to the experimenter that someone is lying, whereas in the current approach one subject lying does not guarantee the experimenter will detect lying. I see no way to avoid this without some form of deception. 
+
+[It's a fair point. Even if the number of white balls is unknown, subjects know the experimenter
+knows. But, in a large session, this is perhaps not a big issue.
+Acknowledge this point in a footnote. But, still worth making the suggestion.]
+
+Tone down the negative attention to GSV, and get directly to your solution. Your method is the critical contribution, and make it central. Comparisons of the CIs in the simulations make this immediately clear. As I mentioned above, I believe that GSV made an important contribution by pointing out the lack of a good statistical inference method for estimating the distribution of lying in the literature, and your contribution is an obvious advance that gets the CIs to be essentially what we would expect. Hopefully, researchers in this literature will adopt an appropriate statistical inference. The likely two most important practical contributions from GSV is quite notably extended here: many studies likely have been under-powered to find significant differences, and closely related, many null results could thus likely be due to low power. Addressing my first two recommendations above (power and a calculator) will help the literature not fall prey to these mistakes.
+
+[TODO. Maybe have less on GSV.]
+
+
