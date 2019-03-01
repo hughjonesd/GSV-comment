@@ -12,6 +12,7 @@ output:
   pdf_document:
     md_extensions: +raw_attribute
     latex_engine: xelatex
+    keep_tex: true
   tufte::tufte_handout:
     latex_engine: xelatex
     md_extensions: +raw_attribute
