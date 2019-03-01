@@ -32,7 +32,8 @@ mathfont: Times New Roman
 > **Abstract**: Garbarino, Slonim and Villeval (2018) describe a new method to calculate the probability
 > distribution of the proportion of lies told in "coin flip" style experiments. I show that their
 > estimates and confidence intervals are flawed. I demonstrate two better ways to estimate the 
-> probability distribution of what we are really interested in: the proportion of liars.
+> probability distribution of what we really care about -- the proportion of liars -- and
+> I provide R software to do this.
 
 ```{r setup, include = FALSE}
 
@@ -60,7 +61,7 @@ checkpoint("2018-11-03", scanForPackages = cache_results)
 
 library(tufte)
 # invalidate cache when the tufte version changes
-knitr::opts_chunk$set(tidy = FALSE, cache.extra = packageVersion('tufte'))
+knitr::opts_chunk$set(tidy = FALSE, cache.extra = packageVersion('tufte'), highlight = FALSE)
 options(htmltools.dir.version = FALSE)
 knitr::opts_chunk$set(echo = FALSE)
 options(huxtable.knitr_output_format = "latex")
@@ -97,7 +98,7 @@ the prevalence of lying, because dishonesty may be economically and socially har
 cannot simply ask people if they are liars, one way to estimate the proportion of liars in a group
 is to ask them to report the result of a coin flip or other random device, offering them a payment
 if they report heads. Liars don't always lie: they only lie when it benefits them. So they always
-report heads irrespective of the true coin flip. ^[GSV maintain this assumption and so shall I.] If
+report heads irrespective of the true coin flip. ^[@Garbarino2018 maintain this assumption and so shall I.] If
 there are many more heads than we would expect by chance, we can assume many people are lying. But
 how many?
 
@@ -119,10 +120,6 @@ They claim that their method corrects for this problem and can estimate the full
 lying outcomes, and they recommend using it for confidence intervals, hypothesis testing and power
 calculations.
 
-Table 3 of GSV reports Monte Carlo simulations, which show that the probability of a Type II error
-can be up to 50 per cent. GSV define a Type II error as the 95% confidence interval not containing
-the true value. A 95% confidence interval which only contains the true value 50% of the time
-is unusual. What is going on?
 
 ```{r generate-data, cache = cache_results}
 
@@ -310,17 +307,19 @@ sim_est <- sim_est %>% filter(method != "recalc")
 
 
 I ran simulations to check the overall performance of the GSV confidence intervals. Simulations
-parameters are shown in Table \ref{tab:params-table}. For each parameter combination, I ran 1000
-simulations. $\lambda$ is the probability that an individual in the sample lies and report heads
+parameters are shown in Table \ref{tab:params-table}. $\lambda$ is the probability that an individual in the sample lies and report heads
 when they observe tails:
 
 \begin{equation}
 \label{eqn:lambda}
-\lambda = \textrm{Prob}(i \textrm{ reports heads}|i\textrm{ saw tails}).
+\lambda = \frac{1}{N} \sum_{i=1}^N \textrm{Prob}(i \textrm{ reports heads}|i\textrm{ saw tails}).
 \end{equation}
 
-For each simulation and confidence interval, I computed whether the confidence interval contained
-the true value of $\lambda$. Table \ref{tab:coverage-just-gsv} shows the results.
+For each parameter combination, I ran 1000 simulations, drawing random coin flips and reports given
+$P$, $\lambda$ and $N$.
+
+For each simulation and confidence level, I computed whether the GSV confidence interval contained
+the true value of $\lambda$. The first row of Table \ref{tab:coverage-allmethods} shows the results.
 
 
 ```{r params-table}
@@ -346,7 +345,7 @@ huxtable(
 
 
 
-```{r coverage-overall}
+```{r coverage-allmethods}
 
 coverage <- sim_est %>% 
       group_by(method, CI) %>% 
@@ -370,233 +369,74 @@ ht_overall <- as_huxtable(cov_overall, add_colnames = TRUE) %>%
       set_number_format(-1, -1, list(pct_format)) %>% 
       theme_plain()
 
+ht_overall %>% 
+      set_caption("Coverage levels for GSV and alternative methods") %>% 
+      set_label("tab:coverage-allmethods")
 
-ht_just_gsv <- ht_overall[1:2,]
-label(ht_just_gsv) <- "tab:coverage-just-gsv"
-ht_just_gsv[1, 1] <- ""
-theme_plain(ht_just_gsv)
 ```
 
 By definition, 95% of 95% confidence intervals ought to contain the true value, on average. This is
-called "achieving nominal coverage". GSV intervals are far from this. The confidence intervals are
-too narrow. This problem holds across all simulated probabilities of the low outcome, confidence
-levels, and sample sizes.^[See the appendix.]
+called "achieving nominal coverage". GSV confidence intervals are
+too narrow.^[This problem holds across all simulated probabilities of the low outcome, confidence
+levels, and sample sizes. See the appendix.]
 
-Why does this happen? We can get a clue by running the GSV method when there are 10 reports of
-"heads" out of 10 for a fair coin flip (*R = N = 10, P = 0.5*). The resulting point estimate is that
-100% of subjects lied. The upper and lower 99% confidence intervals are also 100%. Naïvely, this
-might seem wrong. Can we rule out that 8 subjects lied, and the two honest subjects both saw heads?
+To deal with this problem, I test two alternative methods for calculating confidence intervals
+on my simulated data. The first ("Frequentist") is the standard method of deriving confidence intervals from a binomial test. The second is a Bayesian method. 
 
-In fact, the GSV method works like this. First, given *R* reports of heads, the probability that a
-total of *T* "true" heads were observed is calculated as:
-
-
-\begin{equation}
-\label{eqn:truncated-binom}
-\textrm{Prob}(T \textrm{ heads}| R; N, P) = \frac{
-  \textrm{binom}(T,N, 1 - P)
-}{
-  \sum^R_{k=0}\textrm{binom}(k,N, 1 - P)
-}
-\end{equation}
-
-
-This is the binomial distribution, truncated at *R* because by assumption, nobody "lies downward"
-and reports tails when they really saw heads.
-
-Next, from *T* the number of lies told is calculated as $R - T$; and the proportion of lies told
-is:
-
-
-\begin{equation}
-\textit{Lies} = \frac{R-T}{N-T} 
-\end{equation}
-
-
-because $N - T$ people saw the low outcome and had the chance to lie. Combining this
-with the truncated binomial gives a cumulative distribution function of the proportion of liars.
-This is then used to estimate means and confidence intervals.
-
-Putting these together, for $R = N = 10$, the estimated distribution of liars is calculated as follows:
-
-* With probability $\frac{1}{1024}$, there were really 10 heads. Nobody lied in the
-sample.^[But the proportion of people who lied *out of those who saw tails* is undefined, because
-noone saw tails. The GSV software seems to resolve this by fixing the proportion of lies to 100%.]
-
-* Otherwise, 1 or more people saw tails, and they all lied. The proportion of liars is 100%.
-
-Hence, the lower and upper confidence intervals are all 100%.
-
-There are two problems with this approach. One is statistical, one is conceptual.
-
-```{r heads-10-10-calcs}
-
-heads_10 <- sim_est %>% 
-      filter(N == 10, R == 10, P == 0.5) %>% 
-      select(lambda, heads) 
-h10 <- heads_10$heads
-l10 <- heads_10$lambda
-
-inv_prob_h <- round(1/mean(h10 == 10), 0)
-inv_prob_h_l20 <- round(1/mean(h10[l10 == 0.2] == 10), 0)
-
-```
-
-First, if 10 out of 10 heads are reported, you should learn two things. On the one hand, there are
-probably many liars in your sample. On the other hand, probably a lot of coins really landed heads.
-The probability distribution in equation (\ref{eqn:truncated-binom}) does not take account of this.
-In particular, for *R = N*, it reduces to the binomial distribution. This is not correct. For
-example, in my simulations with $P = 0.5$, the overall probability that there were 10 heads when $R
-= N = 10$ was about 1 in `r inv_prob_h`, not 1 in 1024. When $\lambda = 0.2$, it was about 1 in 
-`r inv_prob_h_l20`. The same is true at the other end of the scale: when *R* is low, we indeed learn
-that $T \le R$ but also that the overall distribution is not shaped like the prior.
-
-Second, more importantly, the GSV approach estimates *Lies*, the distribution of the proportion of 
-*lies actually told*, among the subsample of people who saw tails. But we are not usually interested
-in the proportion of lies actually told. We care about the probability that people in the
-sample would lie if they saw tails --  $\lambda$ in equation (\ref{eqn:lambda}). This $\lambda$ can
-be interpreted in different ways. It could be that on seeing a tail, each person in the sample lies
-with probability $\lambda$. Or it could be that the sample is drawn from a population of whom
-$\lambda$ are (always) liars, and $1 - \lambda$ are truth-tellers. *Lies*, on the other hand,
-has no interpretation in the population, because the rest of the population has no chance to tell a lie
-in the experiment. Indeed, when GSV run Monte Carlo simulations, they themselves check their
-confidence intervals against $\lambda$ (which they call $Q$).
-
-The fact that some people saw heads, and had no reason to lie, is just a nuisance for estimation.
-Similarly, we are not interested, per se, in whether more lies were actually told in one group than
-another. Suppose that 9 out of 10 people saw heads. Only one person had a reason to lie, so by
-definition, *Lies* will be either 0 or 1. This will almost certainly be different from the value of
-*Lies* in another group where there were fewer heads. But that tells us very little, either about the 
-samples as a whole, or about the population they come from. 
-
-*Lies* can be treated as an estimate of $\lambda$. It is unbiased: it is an estimate of 
-$\lambda$ in the random sample of $N - T$ people who saw tails. But it can be a very noisy estimate. 
-Again, suppose 10 heads out of 10 are reported, and 9 heads were really observed. *Lies* is 100%. 
-But it is 100% of just one person.
-
-The first of these two problems means that the GSV distribution of *Lies* is wrong. In the appendix
-I show that their estimator can have substantial bias. In fact, it performs worse than the naïve
-estimator from equation (\ref{eqn:naive-estimator}), $\frac{R-(1-P)}{P}$. Since the true value of
-*Lies* is an unbiased estimator of $\lambda$, the GSV estimator is also a biased estimator of
-$\lambda$, as we will see. Also, the GSV confidence intervals do not always achieve nominal coverage
-of *Lies*. When the number of heads reported is either high or low, the percentage of confidence
-intervals containing *Lies* may fall below the nominal value.
-
-The second problem means that the GSV confidence intervals are not correct for $\lambda$. We can
-tell that the second problem matters, because the confidence interval coverage of $\lambda$ is much
-worse than coverage of *Lies*. 
-
-```{r disagg-coverage}
-
-disagg <- sim_est %>% 
-      filter(method=="gsv") %>% 
-      group_by(
-        `R/N:` = R/N, N, P, CI
-      ) %>% 
-      summarize(mean_in_ci = mean(within_ci, na.rm = TRUE), prop = n()/nrow(.)) %>% 
-      mutate(CI = paste0("CI ", CI, "%")) %>% 
-      spread(CI, mean_in_ci) %>% 
-      mutate(ok  = `CI 95%` > 0.95)
-
-prop_ok <- disagg %>%  
-      ungroup() %>% 
-      summarize(prop_ok = sum(prop[ok])) %>% 
-      pull(prop_ok)
-```
-
-The problem is especially bad when there are many reports of heads. In this case there were probably
-many true heads, so *T* is high and the true sample size $N - T$ is low. Table \ref{tab:coverage-rn}
-shows this. It splits the simulations by the proportion of reported heads, *R/N*. Coverage levels
-fall off sharply as *R/N* increases. For fair coin flips, *R/N* is typically greater than
-0.5, in the simulations and in reality.
-
-```{r coverage-rn}
-coverage_rn <- sim_est %>% 
-      filter(method=="gsv") %>% 
-      group_by(
-        `R/N:` = factor(Hmisc::cut2(R/N, cuts = c(0, 1/4, 1/2, 3/4, 1)))      
-      ) %>% 
-      mutate(pct_cases = n()/nrow(.)) %>% 
-      group_by(`R/N:`, CI) %>% 
-      summarize(
-        mean_in_ci  = mean(within_ci, na.rm = TRUE), 
-        `Percentage of cases` = pct_cases[1]
-      ) %>% 
-      mutate(CI = paste0("CI ", CI, "%")) %>% 
-      spread(CI, mean_in_ci)
-    
-
-as_huxtable(coverage_rn, add_colnames = TRUE) %>% 
-      set_caption("GSV confidence interval coverage by proportion of heads reported ($R/N$)") %>% 
-      set_label("tab:coverage-rn") %>% 
-      set_escape_contents(2:3, 1, FALSE) %>% 
-      set_number_format(-1, -1, list(pct_format)) %>% 
-      theme_plain() %>% 
-      set_right_border(-1, 2, 0.4)
-```
-
-# Alternative methods
-
-Can we do better? Start with the probability of getting *R* reports of heads in total, given
+To understand the statistics, start with the probability of getting *R* reports of heads in total, given
 $\lambda$. Since individuals report heads either if they see heads with probability $1-P$, or if
 they see tails but lie, with probability $\lambda P$, this is just:
 
 \begin{equation}
+\label{eqn:binom}
 \textrm{Pr}(R|\lambda; N,P) = \textrm{binom}(R, N, (1 - P) + \lambda P)
 \end{equation}
 
-That immediately suggests the first method, which is to estimate the parameter of this distribution,
-$(1 - P) + \lambda P$, from the proportion of heads reported in the sample, then back out $\lambda$.
-This is the conventional method of e.g. @abeler2016preferences. It is justified if the sample is
-large, because this will lessen sampling variation in the proportion of actual heads observed.
-Similarly, if the sample is large enough, we can generate hypothesis tests for a value of $\lambda$
--- e.g., zero -- by using the tails of the binomial distribution. And we can back out confidence
-bounds for $\lambda$ from confidence bounds for the population proportion of heads reported in the
-same way. As GSV point out, in small samples, this method runs the risk that the sample proportion
-of high outcomes will be different from its expected value.^[In particular, this method can estimate
-confidence bounds for $\lambda$ lower than 0. If so, we can set them to 0.]   We'll see whether this
-matters.
+That immediately suggests the "Frequentist" method, which is to estimate the parameter of this
+distribution, $(1 - P) + \lambda P$, from the proportion of heads reported in the sample, then back
+out $\lambda$. This is the conventional method of e.g. @abeler2016preferences. It is justified if
+the sample is large, because this will lessen sampling variation in the proportion of actual heads
+observed. Similarly, if the sample is large enough, we can generate hypothesis tests for a value of
+$\lambda$ -- e.g., zero -- by using the tails of the binomial distribution. And we can back out
+confidence bounds for $\lambda$ from confidence bounds for the population proportion of heads
+reported in the same way. As GSV point out, in small samples, this method runs the risk that the
+sample proportion of high outcomes will be different from its expected value.^[In particular, this
+method can estimate confidence bounds for $\lambda$ lower than 0. If so, we can set them to 0.]
+We'll see whether this matters.
 
 There are numerous ways to calculate confidence intervals in a test of proportions. See e.g.
 @agresti1998approximate. Here, I use the binomial exact test of @clopper1934use, which is 
-known to be conservative. I call this the "frequentist" method.
+known to be conservative.
 
-The second method is to use Bayes' rule. Start with a prior probability density function over
-the probability of liars, $\phi(\lambda)$. The posterior probability is then:
+The second method uses Bayes' rule. Start with a prior probability density function over
+$\lambda$, $\phi(\lambda)$. The posterior probability is then:
 
 \begin{equation}
+\label{eqn:bayes}
 \phi(\lambda | R; N,P) = \frac{
   \textrm{Pr}(R|\lambda; N,P) \phi(\lambda)
 }{
-  \int_0^1 \textrm{Pr}(R|\lambda'; N,P) \phi(\lambda) \; \textrm{d}\lambda
+  \int_0^1 \textrm{Pr}(R|\lambda'; N,P) \phi(\lambda') \; \textrm{d}\lambda'
 }
 \end{equation}
 
 
-From this, one can derive confidence intervals and expected values in the usual way.^[R code to do
-this is available at https://github.com/hughjonesd/GSV-comment. ] Technically, they are Bayesian
-"credible" intervals. I use Highest Posterior Density intervals [@hyndman1996computing], rather than
-the central confidence interval. This allows the intervals to include endpoints of the distribution,
-which is important when e.g. testing for $\lambda = 0$.
+From this, one can derive confidence intervals and expected values in the usual way. Technically,
+they are Bayesian "credible" intervals. I used Highest Posterior Density intervals
+[@hyndman1996computing], rather than the central confidence interval. This allows the intervals to
+include endpoints of the distribution, which is important when e.g. testing for $\lambda = 0$.
 
 The Bayesian method requires a prior. Here, I used a uniform prior, $\phi(\lambda) = 1$ on $[0, 1]$.
 
-I ran these estimation methods on my simulated data. Results are shown in Table
-\ref{tab:coverage-allmethods}. Both frequentist and  Bayesian methods mostly achieve the nominal
+Results in Table
+\ref{tab:coverage-allmethods} show that both frequentist and  Bayesian methods mostly achieve the nominal
 confidence level, with more than 90/95/99% of intervals containing the true value of *Liars*. The
 exception is the frequentist 99% confidence interval, which is too narrow.
 
-```{r coverage-allmethods}
-ht_overall %>% 
-      set_caption("Coverage levels for GSV and alternative methods") %>% 
-      set_label("tab:coverage-allmethods")
-```
-
-Frequentist confidence intervals could be less accurate when N is low, since that leads to more
+Frequentist confidence intervals could be less accurate when $N$ is low, since that leads to more
 sampling variation in the number of true heads. Table \ref{tab:coverage-N} checks this by looking
 separately at simulations with *N = 10* and *N = 50*. Frequentist 99% confidence intervals indeed
-appear slightly too narrow for this range. Bayesian confidence intervals are fine. Both alternatives
-perform much better than the GSV approach.
+appear slightly too narrow for this range. Bayesian confidence intervals are fine. 
 
 
 ```{r coverage-N}
@@ -630,37 +470,190 @@ as_huxtable(coverage_N, add_colnames = TRUE) %>%
 ```
 
 
-```{r benndorf-recalc}
-bennd <- update_prior(57, 98, 5/6, dunif)
-bennd_bounds <- dist_hdr(bennd, 0.95)
-bennd_bounds <- pct_format(bennd_bounds)
-bennd_trad <- binom.test(57, 98)$conf.int
-bennd_trad <- pct_format(bennd_trad)
+# Understanding the GSV approach
+
+Why does the GSV method produce narrow confidence intervals? We can get a clue by running the GSV method when there are 10 reports of
+"heads" out of 10 for a fair coin flip (*R = N = 10, P = 0.5*). The resulting point estimate is that
+100% of subjects lied. The upper and lower 99% confidence intervals are also 100%. 
+
+This is calculated as follows. First, given *R* reports of heads, the probability that a
+total of $T$ "true" heads were observed is calculated as:
+
+
+\begin{equation}
+\label{eqn:truncated-binom}
+\textrm{Prob}(T \textrm{ heads}| R; N, P) = \frac{
+  \textrm{binom}(T, N, 1 - P)
+}{
+  \sum^R_{k=0}\textrm{binom}(k, N, 1 - P)
+}
+\end{equation}
+
+
+This is the binomial distribution, truncated at *R* because by assumption, nobody "lies downward"
+and reports tails when they really saw heads.
+
+Next, from *T* the number of lies told is calculated as $R - T$; and the proportion of lies told
+is:
+
+
+\begin{equation}
+\label{eqn:lies}
+\textit{Lies} = \frac{R-T}{N-T} 
+\end{equation}
+
+
+because $N - T$ people saw the low outcome and had the chance to lie. Combining this
+with the truncated binomial gives a cumulative distribution function of *Lies*.
+This is then used to estimate means and confidence intervals.
+
+Putting these together, for $R = N = 10$, the estimated distribution of *Lies* is calculated as follows:
+
+* With probability $\frac{1}{1024}$, there were really 10 heads. Nobody lied in the
+sample.^[But the proportion of people who lied *out of those who saw tails* is undefined, because
+noone saw tails. The GSV software seems to resolve this by fixing the proportion of lies to 100%.]
+
+* Otherwise, 1 or more people saw tails, and they all lied. The proportion of liars is 100%.
+
+Hence, the lower and upper confidence intervals are all 100%.
+
+There are two problems with this approach, one statistical, and one conceptual.
+
+```{r heads-10-10-calcs}
+
+heads_10 <- sim_est %>% 
+      filter(N == 10, R == 10, P == 0.5) %>% 
+      select(lambda, heads) 
+h10 <- heads_10$heads
+l10 <- heads_10$lambda
+
+inv_prob_h <- round(1/mean(h10 == 10), 0)
+inv_prob_h_l20 <- round(1/mean(h10[l10 == 0.2] == 10), 0)
+
 ```
 
-@benndorf2017experienced use the GSV method to calculate confidence intervals for the proportion of
-liars in a lying task with a die roll ($P = 5/6$). From 57 reports of the best outcome, out of 98
-subjects, they calculate a lying rate of 49.68%, with a 95% CI of (45.3%, 53.95%). Using the
-Bayesian method with a uniform prior, the confidence interval becomes (`r bennd_bounds[1]`, 
-`r bennd_bounds[2]`), about twice as big. Obviously, this matters for e.g. sample size calculations.
+First, if many heads are reported, you should learn two things. On the one hand, there are probably
+many liars in your sample. On the other hand, probably a lot of coins really landed heads. The
+probability distribution in equation (\ref{eqn:truncated-binom}) does not take account of this. 
+
+For example, suppose we are certain that everyone in the sample is a liar who always reports heads.
+In this case, observing $R = N = 10$ gives us no information about the true number of heads. The
+posterior probability that $T = 10$ is then indeed 1/1024, the same as the prior. Now suppose we
+know that nobody in the sample is a liar. Then on observing $R = 10$, we are sure that there were
+truly 10 heads: the posterior that $T = 10$ is 1. If exactly 5 out of 10 subjects are liars, then
+observing $R = 10$ means that all 5 truth tellers really saw heads. The posterior probability that
+$T = 10$ is then $1/32$, the chance that all 5 liars saw heads. And so on.
+
+When we are uncertain about the number of liars, our posterior that $T = 10$ will be some weighted
+combination of these beliefs. Unless we are certain everyone in the sample is a liar, the
+probability that $T = 10$ will be greater than 1 in 1024. Equation (\ref{eqn:truncated-binom}) is
+therefore not correct. In this case, it is equivalent to assuming that everybody in the sample is a liar,
+whose report is uninformative about the true number of heads. One then uses the prior distribution
+of heads to estimate the proportion of those who actually saw tails and lied.
+
+Indeed, in the simulations with $P =
+0.5$ and across all values of $\lambda$, the overall probability that there were 10 true heads,
+conditional on $R = N = 10$, was about 1 in `r inv_prob_h`, not 1 in 1024. Fixing $\lambda = 0.2$,
+it was about 1 in `r inv_prob_h_l20`.
+
+This problem means that the GSV estimator of *Lies* is biased. In the appendix
+I show that the GSV estimator can have substantial bias, and performs worse than the naïve
+estimator from equation (\ref{eqn:naive-estimator}), $\frac{R/N-(1-P)}{P}$. Also, the GSV confidence intervals do not always achieve nominal coverage
+of *Lies*. When the number of heads reported is either high or low, the percentage of confidence
+intervals containing *Lies* may fall below the nominal value.
+
+There is a second, more important problem. The GSV approach attempts to estimate *Lies* in equation
+(\ref{eqn:lies}). This is the  proportion of *lies actually told*, among the subsample of people who
+saw tails. But we are not usually interested in the proportion of lies actually told. We care about
+the probability that a subject in the sample would lie if they saw tails --  $\lambda$ in equation
+(\ref{eqn:lambda}). This $\lambda$ can be interpreted in different ways. Maybe on seeing a tail,
+each person in the sample lies with probability $\lambda$. Or maybe the sample is drawn from a
+population of whom $\lambda$ are (always) liars, and $1 - \lambda$ are truth-tellers. *Lies* has no
+interpretation in the population, because the rest of the population has no chance to tell a lie in
+the experiment.
+
+*Lies* can be treated as an estimate of $\lambda$. It is unbiased: it estimates $\lambda$ from the
+random, and randomly-sized, sample of $N - T$ people who saw tails. But it can be a very noisy
+estimate. Again, suppose 10 heads out of 10 are reported, and 9 heads were really observed. *Lies*
+is 100%. But it is 100% of just one person.
+
+This means that even the correct confidence intervals for *Lies* would not be correct for $\lambda$.
+For example, if 3 out of 3 subjects report heads, the GSV software reports a lower bound of 100% for
+any confidence interval. Indeed, since anyone who had the opportunity to lie clearly did so, this is
+the correct lower bound (if we arbitrarily define *Lies = 1* when $T = N$). But it
+makes no sense as a confidence interval for $\lambda$: we clearly can't rule out that one or two
+subjects truly saw heads, and would have reported tails if they had seen tails.
+
+```{r disagg-coverage}
+
+disagg <- sim_est %>% 
+      filter(method=="gsv") %>% 
+      group_by(
+        `R/N:` = R/N, N, P, CI
+      ) %>% 
+      summarize(mean_in_ci = mean(within_ci, na.rm = TRUE), prop = n()/nrow(.)) %>% 
+      mutate(CI = paste0("CI ", CI, "%")) %>% 
+      spread(CI, mean_in_ci) %>% 
+      mutate(ok  = `CI 95%` > 0.95)
+
+prop_ok <- disagg %>%  
+      ungroup() %>% 
+      summarize(prop_ok = sum(prop[ok])) %>% 
+      pull(prop_ok)
+```
+
+Because of this problem, the GSV confidence interval coverage of $\lambda$ is much worse
+than its coverage of *Lies*.The issue is especially serious when there are many reports of heads. In
+this case there were probably many true heads, so *T* is high and the true sample size $N - T$ is
+low, making *Lies* a noisy estimate of $\lambda$. Table \ref{tab:coverage-rn} shows this. It splits
+the simulations by the proportion of reported heads, *R/N*. GSV coverage levels fall off sharply as
+*R/N* increases. Note that for fair coin flips, *R/N* is usually greater than 0.5, both in the
+simulations and in reality.
+
+```{r coverage-rn}
+coverage_rn <- sim_est %>% 
+      filter(method=="gsv") %>% 
+      group_by(
+        `R/N` = factor(Hmisc::cut2(R/N, cuts = c(0, 1/4, 1/2, 3/4, 1)))      
+      ) %>% 
+      mutate(pct_cases = n()/nrow(.)) %>% 
+      group_by(`R/N`, CI) %>% 
+      summarize(
+        mean_in_ci  = mean(within_ci, na.rm = TRUE), 
+        `Percentage of simulations` = pct_cases[1]
+      ) %>% 
+      mutate(CI = paste0("CI ", CI, "%")) %>% 
+      spread(CI, mean_in_ci)
+    
+
+as_huxtable(coverage_rn, add_colnames = TRUE) %>% 
+      set_caption("GSV confidence interval coverage by proportion of heads reported ($R/N$)") %>% 
+      set_label("tab:coverage-rn") %>% 
+      set_escape_contents(2:3, 1, FALSE) %>% 
+      set_number_format(-1, -1, list(pct_format)) %>% 
+      theme_plain() %>% 
+      set_right_border(-1, 2, 0.4) %>% 
+      set_width(0.75)
+```
 
 
 # Point estimation
 
 
-We can also compare the accuracy of point estimates of *Liars*. Table \ref{tab:bias} shows bias
-(the estimated value minus the true value of $\lambda$) for different methods by different *N*.
-The Bayesian method is always the least biased until $N = 500$, and the GSV method is the most biased.
+We can also compare the accuracy of point estimates of $\lambda$ between GSV, Frequentist and
+Bayesian methods. Table \ref{tab:bias} shows bias (the estimated value minus the true value of
+$\lambda$) for different methods by different *N*. The Bayesian method is always the least biased
+until $N = 500$, and the GSV method is the most biased.
 
-Table \ref{tab:mse} shows the mean squared error for methods by different *N*. For low *N*,
-the best method is Bayesian and the worst is Frequentist, with GSV in between. When *N* gets large all
-methods give about the same estimates and are equally accurate. 
+Table \ref{tab:mse} shows the mean squared error for methods by different *N*. For low *N*, the best
+method is Bayesian and the worst is Frequentist, with GSV in between. When *N* gets large all
+methods give about the same estimates and are equally accurate.
 
 The Bayesian method might have an advantage here, since it assumes a uniform prior and the
 simulations indeed used a uniform distribution of the proportion of liars *L/N*. In fact, further
 analysis reveals that the Bayesian method is best across all specific values of *L/N* up to
 80%.^[When *L/N = 1*, all subjects deterministically report heads, and both Frequentist and
-Bayesian point estimates are exactly correct.] So, the Bayesian method is likely to be best unless
+GSV point estimates are exactly correct.] So, the Bayesian method is likely to be best unless
 one is sure that the true *L/N* is rather high.
 
 ```{r point-estimates}
@@ -698,20 +691,7 @@ bias_mse %>%
 
 ```
 
-# Power tests
-
-```{r power-tests}
-power_l_25 <- power_calc(N = 100, P = 0.5, lambda = 0.25)
-power_l_10 <- power_calc(N = 100, P = 0.5, lambda = 0.10)
-```
-
-GSV argue that existing sample sizes may be too small to reject "no lying" ($\lambda = 0$). 
-We can check this with the Bayesian method by simulations. With a uniform prior and an $N$ of 100, 
-the Bayesian method has `r pct_format(power_l_25)` power to detect $\lambda$ of 25% and 
-`r pct_format(power_l_10)` power to detect $\lambda$ of 10%. So, on this we agree. 
-
-
-# Empirical Bayes
+# Comparing different groups
 
 Bayesian estimates are accurate, but rely on a choice of prior.
 A non-informative prior is a reasonable choice. Alternatively one might use information
@@ -720,290 +700,134 @@ the choice of prior should not matter much.
 
 When comparing the dishonesty rates of different groups, an interesting approach is to use the
 "empirical Bayes" method [@casella1985introduction]. This piece of statistical jiu-jitsu involves
-estimating a common prior from the pooled data, before updating the prior for each individual group.
-
-
-```{r hj-data}
-
-load("honesty.RData")
-dfr <- dfr %>% 
-      filter(heads %in% 1:2, ! is.na(resnat) , age %in% 2:6)
-
-nats <- dfr %>%  
-      group_by(resnat) %>% 
-      summarize(
-        heads = sum(heads==1), 
-        N = n(),
-        prop_heads = heads/N,
-        prop_liars = 2*prop_heads - 1
-      )
-
-
-pp <- suppressWarnings(MASS::fitdistr(nats$prop_liars, "beta", start = list(
-        shape1 = 1, shape2 = 1
-      )))
-pooled_prior <- function (x) dbeta(x, pp$estimate["shape1"], pp$estimate["shape2"])
-
-distribs <- apply(nats[, c("heads", "N")], 1, function (r) {
-  N <- r["N"]
-  update_prior(
-      heads = r["heads"],
-      N = N,
-      P = 0.5, 
-      prior = pooled_prior
-  )
-})
-
-names(distribs) <- nats$resnat
-
-nat_means <- sapply(distribs, dist_mean)
-nat_cis <- sapply(distribs, dist_hdr, conf_level = 0.95)
-rownames(nat_cis) <- c("ci.low", "ci.high")
-
-nats <- cbind(nats, t(nat_cis), mean = nat_means)
-
-nats %<>% arrange(mean)
-
-# nats$resnat <- factor(nats$resnat, levels = nats$resnat)
-```
-
-For example, @hugh2016honesty estimates the dishonesty rates of 15 nations using a coin flip
-experiment. We can fit a beta distribution using the 15 observations of *2R/N - 1*. This will be
-our prior.
-
-```{r hj2016-pic, fig.cap = "Posterior means and confidence intervals for proportion dishonest in 15 countries. Crosses are naïve estimates.", fig.align="center", fig.width=5.5, fig.height=4}
-
-ggplot(nats, aes(x = factor(resnat, levels = resnat), y = mean, fill = mean)) +
-      geom_col(alpha = 0.8) +
-      geom_linerange(aes(ymin = ci.low,ymax = ci.high)) +
-      geom_point(aes(y = prop_liars), shape = 4, size = 3, colour = "red") +
-      xlab("Nation") + ylab("Prop. liars") +
-      scale_fill_viridis_c(option = "A", guide = "none") + 
-      theme_light()+
-      coord_flip()
-
-```
-
-
-Results are shown in Figure \ref{fig:hj2016-pic}, with means and 95% confidence intervals. There is
-some "shrinkage" towards the pooled mean from the naïve per-country estimates found by calculating
-*2R/N - 1* separately for each country). One of the strengths of empirical Bayes,  as
-@casella1985introduction points out, is that it "anticipates regression to the mean". That is, as
-there is noise in the data, the most and least honest groups in the data probably had some extreme
-error terms. So the British people in the sample may be less honest, and the Chinese people more
-honest, than the per-group data suggest.
-
-# Bayesian hypothesis testing
+estimating a common prior from the pooled data, before updating the prior for each individual group. 
 
 We can also test hypotheses using the Bayesian approach. If two samples are independent, then the 
 probability that e.g. the true proportion of liars in sample 1 is smaller than in sample 2 can be
-calculated from the marginal distributions in each sample:
+calculated from the posterior distributions for each sample:
 
-\[
+\begin{equation}
+\label{eqn:hypothesis-testing}
 \int^1_0 \int_0^{\lambda_1} \phi(\lambda_1)\phi(\lambda_2) \; \mathrm{d}\lambda_2 \mathrm{d}\lambda_1
-\]
+\end{equation}
 
 
-Table \ref{tab:country-comparisons} shows Bayesian comparisons for selected countries. Even though
-estimates have "shrunk" towards the pooled mean from the naive estimates, differences remain
-significant, partly because the pooled prior has made posterior confidence intervals narrower.
-Similarly, we can calculate the full distribution of the differences between countries.
+# Applications
 
 
-```{r country-comparisons}
-
-prob_country_more <- function (ctry1, ctry2) {
-  compare_dists(distribs[[ctry1]], distribs[[ctry2]])
-}
-
-ctry_comp <- outer(nats$resnat, nats$resnat, Vectorize(prob_country_more))
-diag(ctry_comp) <- NA
-rownames(ctry_comp) <- nats$resnat
-colnames(ctry_comp) <- nats$resnat
-
-selected <- c("GB", "ZA", "GR", "BR", "CN")
-ctry_comp <- ctry_comp[selected, selected]
-cc_hux <- as_huxtable(ctry_comp, add_colnames = TRUE, add_rownames = TRUE) %>% 
-      set_caption("Bayesian country comparisons. 
-            Cells give the probability that the row country has higher proportion of liars.") %>% 
-      set_label("tab:country-comparisons") %>% 
-      set_na_string("--") %>% 
-      set_number_format("%.3f") %>% 
-      set_align(-1, -1, ".") %>% 
-      theme_plain() %>% 
-      set_bold(everywhere, 1, TRUE)
-
-cc_hux[1, 1] <- ''
-
-cc_hux
-
+```{r benndorf-recalc}
+bennd <- update_prior(57, 98, 5/6, dunif)
+bennd_bounds <- dist_hdr(bennd, 0.95)
+bennd_bounds <- pct_format(bennd_bounds)
+bennd_trad <- binom.test(57, 98)$conf.int
+bennd_trad <- pct_format(bennd_trad)
 ```
 
-
-```{r GB-vs-RU-pic, fig.cap = "Probability distribution of difference in proportion of liars, GB vs RU", fig.width=4, fig.height=3, fig.align="left", eval = FALSE}
-
-diff_GB_RU <- difference_dist(distribs$GB, distribs$RU)
-curve(diff_GB_RU, xlim = c(-1, 1), ylab = "Density", xlab = expression(lambda[GB] - lambda[RU]))
-```
-
-
-
-```{r banerjee-recalc, cache = cache_results}
-
-paste_combn <- function (x, y, flip = FALSE) {
- res <- outer(x, y, FUN = paste0)
- if (! flip) res <- t(res)
- c(res)
-}
-
-sigstar <- function (x) {
-  symnum(x, corr = FALSE, 
-          cutpoints = c(0, .001, .01, .05, 1),
-          symbols = c("***", "**", "*", "")
-        )
-}
-
-
-treats <- paste_combn(c("T1", "T2", "T2-winners", "T2-losers"), c("-GC-", "-SC-"))
-treats <- paste_combn(treats, c("Same", "Other"))
-treats <- c("T0-GC-Same", "T0-SC-Same", treats)
-treats <- paste_combn(treats, c("-Aligned", "-Unaligned"), flip = TRUE)
-
-banerjee <- data.frame(
-  Treatment = treats,
-  N       = c(84, 84, rep(c(43, 41, 41, 43, 12,  17, 33, 22), each = 2),
-              90, 78, rep(c(42, 42, 40, 44, 12, 15, 32, 28), each = 2)),
-  pct_gt3 = c(77.38, 77.38, 83.72, 65.12, 80.49, 73.17, 75.61, 53.66, 88.37, 81.40, 58.33, 50.00, 
-              70.59, 52.94, 87.88, 45.45, 68.18, 72.73,
-              68.89, 66.67, 57.14, 73.81, 57.14, 66.67, 60.0, 77.5, 56.82, 59.09, 33.33, 41.67,
-              40.00, 73.33, 53.12, 93.75, 60.71, 75.00
-            )
-)
-
-banerjee %<>% mutate(
-        N_gt3 = round(pct_gt3/100*N, 0)
-      ) %>% 
-      extract(Treatment, c("Treatment", "Target", "Payoffs"), regex = "(.*)-([:alnum:]+)-([:alnum:]+)")
-
-
-banerjee_gsv_cis <- apply(banerjee %>% select(N_gt3, N), 1, function(x) {
-  prop_liars_ci_gsv(0.95, x["N_gt3"], x["N"], 0.5)
-})
-
-rownames(banerjee_gsv_cis) <- c("gsv_lo", "gsv_hi")
-banerjee %<>% cbind(t(round(banerjee_gsv_cis, 2) * 100))
-
-
-# didn't converge to give finite density at 0!
-# pp <- suppressWarnings(MASS::fitdistr(pmax(0.03, 2 * banerjee$N_gt3/banerjee$N - 1), "beta", start = list(
-#         shape1 = 1, shape2 = 1
-#       )))
-# pooled_prior <- function (x) dbeta(x, pp$estimate["shape1"], pp$estimate["shape2"])
-
-
-banerjee_bayes_cis  <- apply(banerjee %>% select(N_gt3, N), 1, function(x) {
-  pstr <- update_prior(x["N_gt3"], x["N"], 0.5, prior = dunif)
-  dist_hdr(pstr, 0.95)
-})
-
-rownames(banerjee_bayes_cis) <- c("bayes_lo", "bayes_hi")
-banerjee %<>% cbind(t(round(banerjee_bayes_cis, 2) * 100))
-
-
-bj_wide <- banerjee %>% 
-      reshape2::melt(id.vars = c("Treatment", "Target", "Payoffs")) %>% 
-      reshape2::dcast(Treatment + Payoffs ~ ...)
-
-same_other_p <- apply(bj_wide %>% select(matches("(Other|Same)_N")), 1, function (x) {
-  if (is.na(x["Other_N_gt3"])) return(rep(NA, 2))
-  pstr_other <- update_prior(x["Other_N_gt3"], x["Other_N"], 0.5, prior = dunif)
-  pstr_same <- update_prior(x["Same_N_gt3"], x["Same_N"], 0.5, prior = dunif)
-  diff_dist <- difference_dist(pstr_other, pstr_same)
-  dist_hdr(diff_dist, 0.95, bounds = c(-1, 1))
-})
-
-rownames(same_other_p) <- c("diff_lo", "diff_hi")
-same_other_p <- t(same_other_p)
-bj_wide %<>% cbind(same_other_p)
-bj_wide %<>% select(Treatment, Payoffs, diff_lo, diff_hi)
-
-
-banerjee %<>% left_join(bj_wide, by = c("Treatment", "Payoffs"))
-banerjee %<>% mutate(
-        GSV_CIs      = sprintf("%s -- %s", gsv_lo, gsv_hi),
-        Bayesian_CIs = sprintf("%s -- %s", bayes_lo, bayes_hi),
-        diff_ci      = ifelse(is.na(diff_lo), "", 
-                               sprintf("%.0f -- %.0f", diff_lo * 100, diff_hi * 100)),
-        diff_ci      = ifelse(diff_lo > 0 | diff_hi < 0, paste(diff_ci, "*"), diff_ci )
-      )
-```
-
-```{r banerjee-recalc-table}
-
-group_cols <- c("Treatment", "Payoffs", "Diff. 95% CI", "N")
-banerjee %>% 
-      select(
-        Treatment,
-        Payoffs,
-        Target,
-        "Pct > 3"        = pct_gt3, 
-        N, 
-        "GSV 95% CI"   = `GSV_CIs`, 
-        "Bayes 95% CI" = `Bayesian_CIs`,
-        "Diff. 95% CI" = `diff_ci`
-      ) %>%
-      as_huxtable(add_colnames = TRUE) %>% 
-      set_rowspan(evens, group_cols, 2) %>% 
-      set_rowspan(grepl("T0", banerjee$Treatment), group_cols, 1) %>% 
-      set_all_border_colors("grey70") %>% 
-      theme_plain() %>% 
-      set_top_border(evens, everywhere, 0.4) %>%
-      set_bottom_border(evens, group_cols, 0.4) %>%
-      set_bottom_border(grepl("T0", banerjee$Treatment), group_cols, 0) %>%
-      set_valign(everywhere, group_cols, "middle") %>% 
-      set_background_color(NA) %>% 
-      set_top_padding(8) %>% 
-      set_bottom_padding(4) %>% 
-      set_font_size(10) %>% 
-      set_caption("Confidence intervals from Banerjee et al. 2018, original and recalculated") %>% 
-      set_label("tab:banerjee-recalc")
-
-```
+@benndorf2017experienced use the GSV method to calculate confidence intervals for the proportion of
+liars in a lying task with a die roll ($P = 5/6$). From 57 reports of the best outcome, out of 98
+subjects, they calculate a lying rate of 49.68%, with a 95% CI of (45.3%, 53.95%). Using the
+Bayesian method with a uniform prior, the confidence interval becomes (`r bennd_bounds[1]`, 
+`r bennd_bounds[2]`), about twice as big.
 
 @banerjee2018spillover use the GSV method to estimate confidence intervals for proportion of liars
-in a die roll task. They estimate the proportion of liars who report a die roll above 3 
-($P = 0.5$), for several treatments. Table \ref{tab:banerjee-recalc} shows GSV confidence intervals,
-along with recalculated Bayesian confidence intervals, and confidence intervals for the difference
-between lying to the "Same" and "Other" caste. Here, I used a non-informative prior rather than
-a pooled prior, letting the algorithm maintain an "open mind" about treatment effects.
+in a die roll task. They estimate the proportion of liars who report a die roll above 3 ($P = 0.5$),
+for several treatments. Table \ref{tab:banerjee-recalc} in the appendix shows GSV confidence
+intervals, along with recalculated Bayesian confidence intervals (from a uniform prior), and
+confidence intervals for the difference between lying to the "Same" and "Other" caste. The Bayesian
+confidence intervals are much larger than GSV confidence intervals. Only a couple of significant
+results survive. (Note that significance tests in the original paper were done with standard
+frequentist techniques, not the GSV method.) More importantly, the N is rather low
+to make useful inferences about the differences between groups. For example, for the T2-winners-GC
+group in the "aligned payoffs" treatment, differences in lying could be as much as 40% in either
+direction.
 
-The Bayesian confidence intervals are much larger
-than GSV confidence intervals. Only a couple of significant results survive. (Note that
-significance tests in the original paper were done with standard frequentist techniques, not the
-GSV method.) More importantly, it is clear that the N is rather low to make useful inferences
-about the differences between groups. For example, for the T2-winners-GC group in the "aligned
-payoffs" treatment, differences in lying could be as much as 40% in either direction. 
+@hugh2016honesty estimates the dishonesty rates of 15 nations using a coin flip experiment. I use
+empirical Bayes to check these results. For my prior over $\lambda$, I fit a beta distribution
+using the 15 observations of *2R/N - 1*. I then updated this prior separately for each country to
+find new confidence intervals and point estimates of the means.^[Results available on request.]
+There is some "shrinkage" towards the pooled mean from the naïve per-country estimates found by
+calculating *2R/N - 1* separately for each country. One of the strengths of empirical Bayes, as
+@casella1985introduction points out, is that it "anticipates regression to the mean". Using equation
+(\ref{eqn:hypothesis-testing}), I calculated the probability of different $\lambda$ values for
+each pair of countries in the data. Reassuringly, there were still significant differences between
+countries.
+
+# Software
+
+The Bayesian methods described here are implemented in R code, available at https://github.com/hughjonesd/GSV-comment. In this section I give some simple examples of how
+to use it. More details are available at the website.
+
+To load the code, download the file "bayesian-heads-cts.R" from github, and source it in the R
+command line:
+
+```{r code-example-1, eval = FALSE, echo = TRUE}
+source("bayesian-heads-cts.R")
+```
+
+Suppose 33 people report heads out of an N of 50, where the probability of the bad outcome is 0.5.
+To create a posterior distribution over $\lambda$, we use the `update_prior()` function: 
+
+```{r code-example-2, echo = TRUE}
+updated <- update_prior(heads = 33, N = 50, P = 0.5, prior = dunif)
+```
+
+Here we've started with a uniform prior, using  R's builtin `dunif()` function.
+
+To calculate the point estimate of lambda, call the `dist_mean()` function on the updated posterior:
+
+```{r code-example-3, echo = TRUE}
+dist_mean(updated)
+```
+
+To calculate the 95% confidence interval (the highest density region), use `dist_hdr()`:
+
+```{r code-example-4, echo = TRUE}
+dist_hdr(updated, 0.95)
+```
+
+
+```{r power-tests}
+power_l_25 <- power_calc(N = 100, P = 0.5, lambda = 0.25, nsims = 500)
+power_l_10 <- power_calc(N = 100, P = 0.5, lambda = 0.10, nsims = 500)
+```
+
+Lastly, we can run power tests by simulating multiple experiments. GSV argue that existing sample
+sizes may be too small to reject "no lying" ($\lambda = 0$). With a uniform prior and an $N$ of 100,
+the Bayesian method has `r pct_format(power_l_25)` power to detect $\lambda$ of 25% and 
+`r pct_format(power_l_10)` power to detect $\lambda$ of 10%. So, this paper confirms that important
+point. To run power calculations, use `power_calc()`. Here, we calculate the power to detect
+$\lambda = 0.1$ in a sample of 300, where the probability of the bad outcome is 0.5, with an alpha
+level of 0.05 and a uniform prior:
+
+```{r code-example-5, echo = TRUE}
+power_calc(N = 300, P = 0.5, lambda = 0.1, prior = dunif, alpha = 0.05)
+```
+
 
 # Conclusion
 
-These results suggest some recommendations when you are analysing a coin-flip
+These results suggest some recommendations when designing and analysing a coin-flip
 style experiment.
+ 
+1. Use power tests to ensure your N is big enough.
 
-1. Do not use the GSV method. Confidence intervals are always too narrow, risking false inferences.
-  
 2. If your N is reasonably large, say at least 100, you can safely use standard frequentist 
   confidence intervals and tests.
   
 3. If your N is small, consider Bayesian estimates and confidence intervals. To estimate differences 
   between subgroups, consider empirical Bayes with a prior derived from the pooled sample.
 
-Lastly, here is a simple experimental design to avoid these statistical shenanigans. Ask a group of *N*
-experimental subjects, not to flip a coin, but to draw a black or white ball, without replacement,
-from an urn containing *N* balls, of which *T* are white. Pay them if they report a white ball. You
-will then know -- not estimate -- that the proportion of lies told is $(R - T)/(N - T)$, and this
-will also be the proportion of liars, in a sample of exactly $N - T$ subjects. You can compare
-different samples, or test for no lying, using a straightforward chi-squared test.
-So, you can simultaneously estimate the proportion of lies, and of the lying liars who tell them.
+Lastly, here is an idea for a simple experimental design to avoid these statistical shenanigans. Ask a
+group of *N* experimental subjects, not to flip a coin, but to draw a black or white ball, without
+replacement, from an urn containing *N* balls, of which *T* are white. Pay them if they report a
+white ball. (Obviously, don't let them observe previous draws.) You will then know -- not estimate --
+that the proportion of lies told is $(R - T)/(N - T)$, and this will also be the proportion of
+liars, in a sample of exactly $N - T$ subjects. You can compare different samples, or test for no
+lying, with a straightforward chi-squared test. The experimenter now knows exactly the
+number of liars, and subjects will understand this, which may change the incentives to lie
+ (maybe subjects don't like giving the experimenter certain knowledge that somebody lied).
+But it simplifies the statistics. This design allows the experimenter to learn the exact proportion 
+of lies, and the lying liars who tell them.
 
 \FloatBarrier
 \newpage
@@ -1013,7 +837,8 @@ So, you can simultaneously estimate the proportion of lies, and of the lying lia
 
 ```{r methods-scale}
 
-scale_colour_methods <- scale_color_brewer(type = "qual", palette = 2)
+scale_colour_methods <- scale_color_brewer(type = "qual", palette = 2, 
+      aesthetics = c("colour", "fill"))
 ```
 
 R code to reproduce this comment is available at https://github.com/hughjonesd/GSV-comment, along with
@@ -1100,8 +925,8 @@ bias_lambda <- sim_est %>%
       rename(Method = method)
 
 
-ggplot(bias_lambda, aes(Method, Bias, colour = Method)) + 
-      geom_point() + scale_x_discrete(breaks = NULL) +
+ggplot(bias_lambda, aes(Method, Bias, fill = Method)) + 
+      geom_col() + scale_x_discrete(breaks = NULL) +
       facet_grid(N ~ P, labeller = "label_both", scales = "free") +
       xlab("") +
       scale_colour_methods
@@ -1324,7 +1149,132 @@ ggplot(lsims_by_R, aes(RN, Coverage, colour = P)) +
 
 ```
 
+## Banerjee et al. results
 
+Table \ref{tab:banerjee-recalc} recalculates confidence intervals from @banerjee2018spillover using
+data in their Tables 6A and 6B.
+
+```{r banerjee-recalc, cache = cache_results}
+
+paste_combn <- function (x, y, flip = FALSE) {
+ res <- outer(x, y, FUN = paste0)
+ if (! flip) res <- t(res)
+ c(res)
+}
+
+sigstar <- function (x) {
+  symnum(x, corr = FALSE, 
+          cutpoints = c(0, .001, .01, .05, 1),
+          symbols = c("***", "**", "*", "")
+        )
+}
+
+
+treats <- paste_combn(c("T1", "T2", "T2-winners", "T2-losers"), c("-GC-", "-SC-"))
+treats <- paste_combn(treats, c("Same", "Other"))
+treats <- c("T0-GC-Same", "T0-SC-Same", treats)
+treats <- paste_combn(treats, c("-Aligned", "-Unaligned"), flip = TRUE)
+
+banerjee <- data.frame(
+  Treatment = treats,
+  N       = c(84, 84, rep(c(43, 41, 41, 43, 12,  17, 33, 22), each = 2),
+              90, 78, rep(c(42, 42, 40, 44, 12, 15, 32, 28), each = 2)),
+  pct_gt3 = c(77.38, 77.38, 83.72, 65.12, 80.49, 73.17, 75.61, 53.66, 88.37, 81.40, 58.33, 50.00, 
+              70.59, 52.94, 87.88, 45.45, 68.18, 72.73,
+              68.89, 66.67, 57.14, 73.81, 57.14, 66.67, 60.0, 77.5, 56.82, 59.09, 33.33, 41.67,
+              40.00, 73.33, 53.12, 93.75, 60.71, 75.00
+            )
+)
+
+banerjee %<>% mutate(
+        N_gt3 = round(pct_gt3/100*N, 0)
+      ) %>% 
+      extract(Treatment, c("Treatment", "Target", "Payoffs"), regex = "(.*)-([:alnum:]+)-([:alnum:]+)")
+
+
+banerjee_gsv_cis <- apply(banerjee %>% select(N_gt3, N), 1, function(x) {
+  prop_liars_ci_gsv(0.95, x["N_gt3"], x["N"], 0.5)
+})
+
+rownames(banerjee_gsv_cis) <- c("gsv_lo", "gsv_hi")
+banerjee %<>% cbind(t(round(banerjee_gsv_cis, 2) * 100))
+
+
+# didn't converge to give finite density at 0!
+# pp <- suppressWarnings(MASS::fitdistr(pmax(0.03, 2 * banerjee$N_gt3/banerjee$N - 1), "beta", start = list(
+#         shape1 = 1, shape2 = 1
+#       )))
+# pooled_prior <- function (x) dbeta(x, pp$estimate["shape1"], pp$estimate["shape2"])
+
+
+banerjee_bayes_cis  <- apply(banerjee %>% select(N_gt3, N), 1, function(x) {
+  pstr <- update_prior(x["N_gt3"], x["N"], 0.5, prior = dunif)
+  dist_hdr(pstr, 0.95)
+})
+
+rownames(banerjee_bayes_cis) <- c("bayes_lo", "bayes_hi")
+banerjee %<>% cbind(t(round(banerjee_bayes_cis, 2) * 100))
+
+
+bj_wide <- banerjee %>% 
+      reshape2::melt(id.vars = c("Treatment", "Target", "Payoffs")) %>% 
+      reshape2::dcast(Treatment + Payoffs ~ ...)
+
+same_other_p <- apply(bj_wide %>% select(matches("(Other|Same)_N")), 1, function (x) {
+  if (is.na(x["Other_N_gt3"])) return(rep(NA, 2))
+  pstr_other <- update_prior(x["Other_N_gt3"], x["Other_N"], 0.5, prior = dunif)
+  pstr_same <- update_prior(x["Same_N_gt3"], x["Same_N"], 0.5, prior = dunif)
+  diff_dist <- difference_dist(pstr_other, pstr_same)
+  dist_hdr(diff_dist, 0.95, bounds = c(-1, 1))
+})
+
+rownames(same_other_p) <- c("diff_lo", "diff_hi")
+same_other_p <- t(same_other_p)
+bj_wide %<>% cbind(same_other_p)
+bj_wide %<>% select(Treatment, Payoffs, diff_lo, diff_hi)
+
+
+banerjee %<>% left_join(bj_wide, by = c("Treatment", "Payoffs"))
+banerjee %<>% mutate(
+        GSV_CIs      = sprintf("%s -- %s", gsv_lo, gsv_hi),
+        Bayesian_CIs = sprintf("%s -- %s", bayes_lo, bayes_hi),
+        diff_ci      = ifelse(is.na(diff_lo), "", 
+                               sprintf("%.0f -- %.0f", diff_lo * 100, diff_hi * 100)),
+        diff_ci      = ifelse(diff_lo > 0 | diff_hi < 0, paste(diff_ci, "*"), diff_ci )
+      )
+```
+
+```{r banerjee-recalc-table}
+
+group_cols <- c("Treatment", "Payoffs", "Diff. 95% CI", "N")
+banerjee %>% 
+      select(
+        Treatment,
+        Payoffs,
+        Target,
+        "Pct > 3"        = pct_gt3, 
+        N, 
+        "GSV 95% CI"   = `GSV_CIs`, 
+        "Bayes 95% CI" = `Bayesian_CIs`,
+        "Diff. 95% CI" = `diff_ci`
+      ) %>%
+      as_huxtable(add_colnames = TRUE) %>% 
+      set_rowspan(evens, group_cols, 2) %>% 
+      set_rowspan(grepl("T0", banerjee$Treatment), group_cols, 1) %>% 
+      set_all_border_colors("grey70") %>% 
+      theme_plain() %>% 
+      set_top_border(evens, everywhere, 0.4) %>%
+      set_bottom_border(evens, group_cols, 0.4) %>%
+      set_bottom_border(grepl("T0", banerjee$Treatment), group_cols, 0) %>%
+      set_valign(everywhere, group_cols, "middle") %>% 
+      set_background_color(NA) %>% 
+      set_top_padding(8) %>% 
+      set_bottom_padding(4) %>% 
+      set_font_size(10) %>% 
+      set_caption("Confidence intervals from Banerjee et al. 2018, original and recalculated") %>% 
+      set_label("tab:banerjee-recalc")
+
+```
 
 \FloatBarrier
 
