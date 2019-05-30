@@ -431,7 +431,7 @@ The Bayesian method requires a prior. Here, I used a uniform prior, $\phi(\lambd
 
 Results in Table
 \ref{tab:coverage-allmethods} show that both frequentist and  Bayesian methods mostly achieve the nominal
-confidence level, with more than 90/95/99% of intervals containing the true value of *Liars*. The
+confidence level, with more than 90/95/99% of intervals containing the true value of $\lambda$. The
 exception is the frequentist 99% confidence interval, which is too narrow.
 
 Frequentist confidence intervals could be less accurate when $N$ is low, since that leads to more
@@ -818,17 +818,6 @@ style experiment.
 3. If your N is small, consider Bayesian estimates and confidence intervals. To estimate differences 
   between subgroups, consider empirical Bayes with a prior derived from the pooled sample.
 
-Lastly, here is an idea for a simple experimental design to avoid these statistical shenanigans. Ask a
-group of *N* experimental subjects, not to flip a coin, but to draw a black or white ball, without
-replacement, from an urn containing *N* balls, of which *T* are white. Pay them if they report a
-white ball. (Obviously, don't let them observe previous draws.) You will then know -- not estimate --
-that the proportion of lies told is $(R - T)/(N - T)$, and this will also be the proportion of
-liars, in a sample of exactly $N - T$ subjects. You can compare different samples, or test for no
-lying, with a straightforward chi-squared test. The experimenter now knows exactly the
-number of liars, and subjects will understand this, which may change the incentives to lie
- (maybe subjects don't like giving the experimenter certain knowledge that somebody lied).
-But it simplifies the statistics. This design allows the experimenter to learn the exact proportion 
-of lies, and the lying liars who tell them.
 
 \FloatBarrier
 \newpage
@@ -935,7 +924,7 @@ ggplot(bias_lambda, aes(Method, Bias, fill = Method)) +
 ```
 
 Figure \ref{fig:errors-by-true-prop} shows mean squared error by estimation method and $\lambda$,
-for *N* of 10 and 50. The Bayesian method is best for all values of *Liars* up to 80%.
+for *N* of 10 and 50. The Bayesian method is best for all values of $\lambda$ up to 80%.
 
 ```{r errors-by-true-prop, fig.cap = "Errors by method and $\\lambda$, N = 10 and 50", fig.align="left", fig.width=5.5, fig.height=4}
 
