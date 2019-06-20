@@ -4,6 +4,8 @@ Garbarino, Ellen, Robert Slonim, and Marie Claire Villeval (2018):
 [“A Method to Estimate Mean Lying Rates and Their Full
 Distribution.”](https://doi.org/10.1007/s40881-018-0055-4) Journal of the Economic Science Association. 
 
+For the PDF, see https://github.com/hughjonesd/GSV-comment/raw/master/GSV-comment-brief.pdf.
+
 The published version is available [here](https://link.springer.com/article/10.1007/s40881-019-00069-x), if you like 
 bad formatting and supporting parasitic academic publishers.
 
