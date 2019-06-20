@@ -4,6 +4,9 @@ Garbarino, Ellen, Robert Slonim, and Marie Claire Villeval (2018):
 [“A Method to Estimate Mean Lying Rates and Their Full
 Distribution.”](https://doi.org/10.1007/s40881-018-0055-4) Journal of the Economic Science Association. 
 
+The published version is available [here](https://link.springer.com/article/10.1007/s40881-019-00069-x), if you like 
+bad formatting and supporting parasitic academic publishers.
+
 To reproduce the paper, clone the repository from your command line:
 
 ```bash
@@ -42,6 +45,8 @@ dist_quantile(updated, c(.025, .975))
 dist_hdr(updated)
 curve(updated)
 ```
+
+*Update*: code is now available as a [standalone R package](https://github.com/hughjonesd/truelies).
 
 `GSV-heads.R` contains functions to estimate the distribution of *lies told* in a sample,
 using GSV's methods.
