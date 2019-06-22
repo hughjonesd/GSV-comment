@@ -35,25 +35,8 @@ This will install the versions of the packages used to create the comment.
 
 ## Other files
 
-`bayesian-heads-cts.R` contains functions to estimate the distribution of liars in a sample
-using Bayesian methods. Here's an example:
+Code for the Bayesian methods is now available as a [standalone R package](https://github.com/hughjonesd/truelies).
 
-```r
-source("bayesian-heads-cts.R")
-# heads is number of reported heads, N is sample size, P is probability of *bad* outcome
-updated <- update_prior(heads = 33, N = 50, P = 0.5, prior = dunif)
-dist_mean(updated)
-dist_quantile(updated, c(.025, .975))
-dist_hdr(updated)
-curve(updated)
-```
-
-*Update*: code is now available as a [standalone R package](https://github.com/hughjonesd/truelies).
-
-`GSV-heads.R` contains functions to estimate the distribution of *lies told* in a sample,
-using GSV's methods.
-
-`bayesian-heads.R` contains some obsolete code.
 
 `GSV-sims.csv` contains input for the GSV Java program. `GSV-comment-brief.Rmd` will automatically
 create this, but you can use it if you want to skip that step.
