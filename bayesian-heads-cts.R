@@ -4,6 +4,12 @@
 
 library(hdrcde)
 
+message("Code for Bayesian estimation in lying experiments is now available in
+a standalone R package. See https://github.com/hughjonesd/truelies or type
+  install.packages('truelies')
+to install the latest stable version from CRAN.")
+
+
 #' Calculate the probability of observing `heads`
 #' good outcomes out of `N` total outcomes, conditional
 #' on subjects lying with prob `lambda` if they see heads.

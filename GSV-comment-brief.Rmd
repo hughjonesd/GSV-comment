@@ -67,7 +67,7 @@ options(htmltools.dir.version = FALSE)
 knitr::opts_chunk$set(echo = FALSE)
 options(huxtable.knitr_output_format = "latex")
 
-source("bayesian-heads-cts.R")
+suppressMessages(source("bayesian-heads-cts.R"))
 source("GSV-heads.R")
 
 suppressPackageStartupMessages({
