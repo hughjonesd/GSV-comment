@@ -1,0 +1,31 @@
+Type: Compendium
+Package: GSV Comment
+Title: Source code for the article 'True Lies: Comment on
+    Garbarino, Slonim and Villeval (2018)'.
+Version: 0.0.1
+Authors@R: 
+    person(given = "David",
+           family = "Hugh-Jones",
+           role = c("aut", "cre"),
+           email = "davidhughjones@gmail.com")
+Description: Source code for the article 'True Lies: Comment on
+    Garbarino, Slonim and Villeval (2018)'.
+Depends: 
+    broom,
+    dplyr,
+    ggplot2,
+    hdrcde,
+    Hmisc,
+    huxtable,
+    knitr,
+    magrittr,
+    MASS,
+    purrr,
+    readr,
+    reshape2,
+    rmarkdown,
+    stats,
+    tidyr,
+    tufte
+Encoding: UTF-8
+LazyData: true

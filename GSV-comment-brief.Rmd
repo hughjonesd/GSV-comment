@@ -56,10 +56,6 @@ params <-   list(
  
 ci_levels <- c(90L, 95L, 99L)
 
-
-library(checkpoint)
-checkpoint("2018-11-03", scanForPackages = cache_results)
-
 library(tufte)
 # invalidate cache when the tufte version changes
 knitr::opts_chunk$set(tidy = FALSE, cache.extra = packageVersion('tufte'), highlight = FALSE)
