@@ -1,4 +1,8 @@
 
+  <!-- badges: start -->
+  [![Launch Rstudio Binder](http://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/hughjonesd/GSV-comment/binder?urlpath=rstudio)
+  <!-- badges: end -->
+  
 This is source code and data for a comment on
 Garbarino, Ellen, Robert Slonim, and Marie Claire Villeval (2018):
 [“A Method to Estimate Mean Lying Rates and Their Full
@@ -9,7 +13,9 @@ For the PDF, see https://github.com/hughjonesd/GSV-comment/raw/master/GSV-commen
 The published version is available [here](https://link.springer.com/article/10.1007/s40881-019-00069-x), if you like 
 bad formatting and supporting parasitic academic publishers.
 
-To reproduce the paper, clone the repository from your command line:
+To reproduce the paper, click the "build binder" badge above. 
+
+Or, to reproduce manually, clone the repository from your command line:
 
 ```bash
 git clone https://github.com/hughjonesd/GSV-comment.git
