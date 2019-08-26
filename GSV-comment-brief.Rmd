@@ -46,6 +46,7 @@ nreps <- 1000L
 cache_results <- FALSE
 
 # set to TRUE to (re)create the simulations CSV file, then stop:
+# NB: you can't do this within binder AFAIK
 rerun_java <- FALSE
 
 params <-   list(
