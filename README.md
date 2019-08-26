@@ -1,6 +1,6 @@
 
   <!-- badges: start -->
-  [![Launch Rstudio Binder](http://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/hughjonesd/GSV-comment/master?urlpath=rstudio)
+  [![Launch Rstudio Binder](http://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/hughjonesd/GSV-comment/binder?urlpath=rstudio)
   <!-- badges: end -->
   
 This is source code and data for a comment on
