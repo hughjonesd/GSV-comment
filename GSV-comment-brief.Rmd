@@ -25,8 +25,6 @@ output:
 bibliography: bibliography.bib
 link-citations: yes
 fontsize: 12pt
-mainfont: Times New Roman
-mathfont: Times New Roman
 ---
 
 
